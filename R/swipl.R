@@ -1,4 +1,17 @@
 
+#' pl_eval
+#'
+#' @param body p1
+#' @param query p1
+#' @param nsol p1
+#' @param verbose v
+#' @param timeout p1
+#' @param data p1
+#' @param ... p1
+#'
+#' @return p1
+#' @export
+#'
 pl_eval <- function(body, query="true", nsol=10 , verbose=F, timeout=10, data, ...) {
 
   if (missing(data))
@@ -10,12 +23,11 @@ pl_eval <- function(body, query="true", nsol=10 , verbose=F, timeout=10, data, .
   l_src <- paste(
     body,
     "\n",
-    paste0("main :-
+    paste0("main_query :-
            term_variables( (", query, "), ListVars),
            findnsols(",nsol,",ListVars , (", query, "), ListRes),
-           maplist(writeln, ListRes),
-           halt.",
-           "\n:- call_with_time_limit(", timeout,", main)."),
+           maplist(writeln, ListRes).",
+           "\nmain :- call_with_time_limit(", timeout,", main_query)."),
     collapse = "", sep = "\n"
   )
 
@@ -25,9 +37,10 @@ pl_eval <- function(body, query="true", nsol=10 , verbose=F, timeout=10, data, .
   if ( verbose == TRUE )
     cat(l_src, "\n")
 
-  l_cmd <- paste("/usr/local/bin/swipl ",
-                  #"-g main " ,
-                  "-f ", l_file, sep = " " )
+  l_cmd <- paste("/usr/local/bin/swipl -q ",
+                  " -f ", l_file,
+                  " -g main -t halt " ,
+                   sep = " " )
 
   l_cmd_ret <- system(l_cmd, intern = T, wait = T )
 
@@ -92,6 +105,13 @@ pl_eval <- function(body, query="true", nsol=10 , verbose=F, timeout=10, data, .
 }
 
 
+#' knit_prolog_engine
+#'
+#' @param options p1
+#'
+#' @return p1
+#' @export
+#'
 knit_prolog_engine <- function (options) {
 
   if (is.null(options$maxnsols) )
@@ -119,8 +139,6 @@ knit_prolog_engine <- function (options) {
   }  else
     out_list <- list()
 
-  cat("res: ", options$results, "\n")
-  class(options$code)<- "prolog"
   if (options$silent == TRUE)
     options$results = "hide"
   else if (options$results == "hide") {}
@@ -134,7 +152,7 @@ knit_prolog_engine <- function (options) {
 
   # If chunk is named, assigne results to a variable named after the chunk
   if ( !grepl("^unnamed-chunk", options$label) )
-    assign(envir = .GlobalEnv, x = options$label, value = out_list)
+    assign(envir = .GlobalEnv, x = options$label, value = out_list[[length(out_list)]])
 
   # Assigne first result variables
   if (length(out_list) > 0 && length(out_list[[1]]) > 0)
@@ -162,10 +180,14 @@ knit_prolog_engine <- function (options) {
   attr(l_out, "format") <- "markdown"
   class(l_out) <- "knitr_kable"
 
+  options$highlights <- TRUE
+  options$engine <- "prolog"
+
+  class(options$code) <- "prolog"
+
   if (options$results == "hide")
     l_out <- ""
 
   knitr::engine_output(options, options$code, l_out)
 }
 
-knitr::knit_engines$set(prologr=knit_prolog_engine)
