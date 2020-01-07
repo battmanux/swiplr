@@ -1,3 +1,27 @@
+fDecodeStdErr <- function(txtList, l_file) {
+  l_line <- as.numeric(gsub(".*.pl:(\\d+):.*$", '\\1', txtList[[1]]))
+  l_col  <- gsub(".*.pl:\\d+:(\\d*).*$", '\\1', txtList[[1]])
+
+  l_msg <- c("\n",paste(
+    system(paste0("cat -n ", l_file, " | head -n ",l_line," | tail -n 4"), intern = T),
+    collapse = "\n"))
+
+  if ( nchar(l_col) > 0 )
+    l_msg <- c(l_msg, "\t", paste( rep(" ", as.numeric(l_col)), sep = ''), "^\n")
+  if ( length(txtList) >= 2)
+    l_msg <- c(l_msg, txtList[[2]], "\n")
+
+  warning(l_msg, call. = F)
+}
+
+fCleanStdOut <- function(txtList, verbose=F) {
+  if (verbose == TRUE) {
+    cat(paste(txtList[grepl(pattern = "^[^\\[]", txtList)], sep = "\n", collapse = "\n"))
+    cat("\n")
+  }
+  txtList[grepl(pattern = "^\\[", txtList)]
+}
+
 
 #' pl_eval
 #'
@@ -13,7 +37,6 @@
 #' @export
 #'
 pl_eval <- function(body, query="true", nsol=10 , verbose=F, timeout=10, data, ...) {
-
   if (missing(data))
     data <- list(...)
 
@@ -39,65 +62,97 @@ pl_eval <- function(body, query="true", nsol=10 , verbose=F, timeout=10, data, .
 
   l_cmd <- paste("/usr/local/bin/swipl -q ",
                   " -f ", l_file,
-                  " -g main -t halt " ,
+                  " -g main -t halt 2>&1 " ,
                    sep = " " )
 
   l_cmd_ret <- system(l_cmd, intern = T, wait = T )
 
   l_cmd_ret <- l_cmd_ret[l_cmd_ret != ""]
 
-  l_r_data <- lapply(l_cmd_ret, function(x) {
-    x <- gsub("]-1", "]", x)
-    if (x=="")
-      l_ret <- NULL
-    else if (x=="true")
-      l_ret <- TRUE
-    else if (x=="false")
-      l_ret <- FALSE
-    else if ( startsWith(x, "[") ) {
-      x <-
-        gsub(perl = T,
-        pattern = '([\\[\\ ]*)\'?([^\', \\]]*)\'?([\', \\]]*)',
-        replacement = '\\1"\\2"\\3',
-        x )
-      x <-
-        gsub(perl = T,
-             pattern = '"([0-9.-]*)"',
-             replacement = '\\1',
-             x )
+  if ( verbose == TRUE ) {
+    cat("prolog output:\n")
+    cat(paste(l_cmd_ret, collapse = "\n"), "\n")
+  }
 
-      l_ret <- try(rjson::fromJSON( x, simplify = T,  ) )
+  if ( grepl("^Warning:", l_cmd_ret[1]) ) {
+    fDecodeStdErr(l_cmd_ret, l_file)
+  }
 
-      if (inherits(l_ret, "try-error"))
-        l_ret <- x
+  if ( grepl("^ERROR:", l_cmd_ret[1]) ) {
+    l_r_data <- FALSE
 
-    } else {
-      l_ret <- x
-      warning("Unable to parse: ", x)
-    }
-
-    return(l_ret)
-
-  }  )
-
-  l_r <- gregexpr("[A-Z][a-zA-Z0-9_]*",query)
-  l_variables <- unique(unlist(regmatches(query,  l_r)))
-
-  l_sizes <- sapply(l_r_data, function(x) sapply(x, length) )
-  if ( min(l_sizes) == max(l_sizes) ) {
-
-    l_table <- lapply(seq_along(l_variables), function(i)  {
-      sapply(l_r_data, function(x) unlist(x[[i]], use.names = T))
-    })
-
-    names(l_table) <- l_variables
-
-    l_r_data <-  as.data.frame(l_table)
+    fDecodeStdErr(l_cmd_ret, l_file)
 
   } else {
-    for ( i in seq_along(l_r_data)) {
-      names(l_r_data[[i]]) <- l_variables
-      ?unlist()
+
+    l_cmd_ret <- fCleanStdOut(l_cmd_ret, verbose = verbose)
+    l_r <- gregexpr("[A-Z][a-zA-Z0-9_]*",query)
+    l_variables <- unique(unlist(regmatches(query,  l_r)))
+
+    if (length(l_cmd_ret) > 0) {
+
+      l_r_data <- lapply(l_cmd_ret, function(x) {
+        x <- gsub("]-1", "]", x)
+        if (x=="[]") {
+          l_ret <- TRUE
+        } else if ( startsWith(x, "[") ) {
+          x1 <- gsub("(_G?[0-9]+)", "`\\1`", x)
+          x2 <- gsub("\\[", "c(", x1)
+          x3 <- gsub("\\]", ")",  x2)
+          l_err <- try({
+            l_l <- parse(text = x3)
+            l_ret <- unlist(lapply(l_l[[1]][2:length(l_l[[1]])],
+                                   function(x) if ( is.language(x) )
+                                     capture.output(print(x))
+                                   else
+                                     capture.output(cat(x))
+            ) )
+          }, silent = T)
+
+          if (inherits(l_err, "try-error")) {
+            l_ret <- character(length(l_variables))
+            l_ret[[1]] <- x1
+          }
+
+        } else {
+          l_ret <- character(length(l_variables))
+          l_ret[[1]] <- paste0("#msg: ", x)
+        }
+
+        return(l_ret)
+
+      }  )
+
+    } else {
+      l_r_data <- list()
+    }
+
+    if ( length(l_r_data) == 0) {
+      l_r_data <- list(lapply(l_variables, function(x) c(NA) ) )
+    }
+
+    l_sizes <- unlist(lapply(l_r_data, length))
+    # print(l_sizes)
+    if ( min(l_sizes) == max(l_sizes) ) {
+
+      if ( length(l_variables) == 0 ) {
+
+        l_r_data <-  l_r_data[[1]]
+
+      } else {
+
+        l_table <- lapply(seq_along(l_variables), function(i)  {
+          sapply(l_r_data, function(x) unlist(x[[i]], use.names = T))
+        })
+
+        names(l_table) <- l_variables
+
+        l_r_data <-  as.data.frame(l_table)
+
+      }
+
+    } else {
+      l_r_data <- paste("res=",l_r_data)
     }
   }
 
@@ -115,7 +170,7 @@ pl_eval <- function(body, query="true", nsol=10 , verbose=F, timeout=10, data, .
 knit_prolog_engine <- function (options) {
 
   if (is.null(options$maxnsols) )
-    options$maxnsols <- 1
+    options$maxnsols <- 10
 
   if (is.null(options$silent) )
     options$silent <- F
