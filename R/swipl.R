@@ -86,8 +86,10 @@ pl_eval <- function(body, query="true", nsol=10 , verbose=F, timeout=10, data, .
   } else {
 
     l_cmd_ret <- fCleanStdOut(l_cmd_ret, verbose = verbose)
-    l_r <- gregexpr("[A-Z][a-zA-Z0-9_]*",query)
-    l_variables <- unique(unlist(regmatches(query,  l_r)))
+    l_r <- gregexpr("\\<_\\>|[A-Z][a-zA-Z0-9_]*",query)
+    l_variables <- unlist(regmatches(query,  l_r))
+    for ( v in which(l_variables == '_') ) { l_variables[[v]] <- paste0("HIDDEN34342_", v) }
+    l_variables <- unique(l_variables)
 
     if (length(l_cmd_ret) > 0) {
 
@@ -103,9 +105,9 @@ pl_eval <- function(body, query="true", nsol=10 , verbose=F, timeout=10, data, .
             l_l <- parse(text = x3)
             l_ret <- unlist(lapply(l_l[[1]][2:length(l_l[[1]])],
                                    function(x) if ( is.language(x) )
-                                     capture.output(print(x))
+                                     paste(capture.output(print(x)), collapse = "")
                                    else
-                                     capture.output(cat(x))
+                                     paste(capture.output(cat(x)), collapse = "")
             ) )
           }, silent = T)
 
@@ -148,6 +150,7 @@ pl_eval <- function(body, query="true", nsol=10 , verbose=F, timeout=10, data, .
         names(l_table) <- l_variables
 
         l_r_data <-  as.data.frame(l_table)
+        l_r_data <- l_r_data[,grep("^HIDDEN34342_", l_variables, invert = T)]
 
       }
 
@@ -203,16 +206,13 @@ knit_prolog_engine <- function (options) {
   #options$render = NULL
 
   # assign resutls in prolog_output
+  names(out_list) <- as.character(paste0("result_", seq_along(out_list)))
+  assign(envir = .GlobalEnv, x = "pl", value = out_list)
   assign(envir = .GlobalEnv, x = "prolog_output", value = out_list)
 
   # If chunk is named, assigne results to a variable named after the chunk
   if ( !grepl("^unnamed-chunk", options$label) )
     assign(envir = .GlobalEnv, x = options$label, value = out_list[[length(out_list)]])
-
-  # Assigne first result variables
-  if (length(out_list) > 0 && length(out_list[[1]]) > 0)
-    for (n in names(out_list[[1]][[1]]))
-      assign(envir = .GlobalEnv, x = n, value = out_list[[1]][[1]][[n]])
 
   l_out <- vector(mode="list", length = length(out_list))
   for ( i in seq_along(out_list) ) {
