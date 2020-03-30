@@ -98,7 +98,7 @@ pl_eval <- function(body, query="true", nsol=10 , verbose=F, timeout=10, data, .
         if (x=="[]") {
           l_ret <- TRUE
         } else if ( startsWith(x, "[") ) {
-          x1 <- gsub("(_G?[0-9]+)", "`\\1`", x)
+          x1 <- gsub("(\\<_G?[0-9]+)", "`\\1`", x)
           x2 <- gsub("\\[", "c(", x1)
           x3 <- gsub("\\]", ")",  x2)
           l_err <- try({
