@@ -195,7 +195,7 @@ knit_prolog_engine <- function (options) {
                                                     verbose = (!is.null(options$verbose) && options$verbose ),
                                                     data = .GlobalEnv))
   }  else
-    out_list <- list()
+    out_list <- lapply(l_query, function(x) NULL)
 
   if (options$silent == TRUE)
     options$results = "hide"
