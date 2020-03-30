@@ -182,17 +182,21 @@ knit_prolog_engine <- function (options) {
     options$timeout <- 10
 
   # Push multiple lines on the same line
-  for ( l in which(endsWith(options$code, "\\")) ) { 
-    options$code[[l+1]] <- paste0(gsub("\\\\$", "", options$code[[l]]), " ", options$code[[l+1]]) 
-    options$code[[l]] <- ""  
-  }
+  l_code <- options$code
+  for ( l in which(endsWith(l_code, "\\")) ) { 
+	    l_code[[l+1]] <- paste0(gsub("\\$", "", l_code[[l]]), " ", l_code[[l+1]]) 
+    l_code[[l]] <- ""  
+    }
+  
+  l_query <- gsub("^ *\\?- *(.*[^\\. ])[\\. ]*$", "\\1", 
+		  grep(pattern = "^ *\\?- *(.*)$", 
+		       l_code, value = T))
 
-  l_query <- gsub("^ *\\?- *(.*[^\\. ])[\\. ]*$", "\\1",
-                  grep(pattern = "^ *\\?- *(.*)$",
-                       options$code, value = T))
-  l_body <- paste(
-    grep(pattern = "^ *\\?- *(.*)$", options$code, value = T, invert = T),
-    collapse  = "\n")
+  l_body <- paste(grep(pattern = "^ *\\?- *(.*)$",
+		       l_code, 
+		       value = T, invert = T),
+		  collapse = "\n")
+
 
   if (options$eval) {
     out_list <- lapply(l_query, function(x) pl_eval(l_body, query = x, nsol = options$maxnsols,
