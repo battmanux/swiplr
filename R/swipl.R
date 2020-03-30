@@ -206,31 +206,34 @@ knit_prolog_engine <- function (options) {
   #options$render = NULL
 
   # assign resutls in prolog_output
-  names(out_list) <- as.character(paste0("result_", seq_along(out_list)))
-  assign(envir = .GlobalEnv, x = "pl", value = out_list)
-  assign(envir = .GlobalEnv, x = "prolog_output", value = out_list)
-
-  # If chunk is named, assigne results to a variable named after the chunk
-  if ( !grepl("^unnamed-chunk", options$label) )
-    assign(envir = .GlobalEnv, x = options$label, value = out_list[[length(out_list)]])
-
   l_out <- vector(mode="list", length = length(out_list))
-  for ( i in seq_along(out_list) ) {
-
-    if (inherits(out_list[[i]], "data.frame")) {
-      l_out_kable <- knitr::kable(out_list[[i]])
-      for ( j in seq_along(l_out_kable) )
-        l_out_kable[j] <- paste0("  ", l_out_kable[j])
-
-      l_out_kable[length(l_out_kable)+1] <- ""
-      l_out[[i]] <- l_out_kable
-
-    } else {
-      l_out[[i]] <- paste0(rjson::toJSON(out_list[[i]]), "\n")
-    }
-
+ 
+  if ( length(out_list) > 0 ) {
+      names(out_list) <- as.character(paste0("result_", seq_along(out_list)))
+      assign(envir = .GlobalEnv, x = "pl", value = out_list)
+      assign(envir = .GlobalEnv, x = "prolog_output", value = out_list)
+    
+      # If chunk is named, assigne results to a variable named after the chunk
+      if ( !grepl("^unnamed-chunk", options$label) )
+        assign(envir = .GlobalEnv, x = options$label, value = out_list[[length(out_list)]])
+    
+      for ( i in seq_along(out_list) ) {
+    
+        if (inherits(out_list[[i]], "data.frame")) {
+          l_out_kable <- knitr::kable(out_list[[i]])
+          for ( j in seq_along(l_out_kable) )
+            l_out_kable[j] <- paste0("  ", l_out_kable[j])
+    
+          l_out_kable[length(l_out_kable)+1] <- ""
+          l_out[[i]] <- l_out_kable
+    
+        } else {
+          l_out[[i]] <- paste0(rjson::toJSON(out_list[[i]]), "\n")
+        }
+    
+      }
   }
-
+  
   l_out <- unlist(l_out)
   attr(l_out, "format") <- "markdown"
   class(l_out) <- "knitr_kable"
