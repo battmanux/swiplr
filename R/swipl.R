@@ -183,7 +183,7 @@ knit_prolog_engine <- function (options) {
 
   # Push multiple lines on the same line
   for ( l in which(endsWith(options$code, "\\")) ) { 
-    options$code[[l+1]] <- paste0(gsub("\\$", "", options$code[[l]]), " ", options$code[[l+1]]) 
+    options$code[[l+1]] <- paste0(gsub("\\\\$", "", options$code[[l]]), " ", options$code[[l+1]]) 
     options$code[[l]] <- ""  
   }
 
