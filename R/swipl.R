@@ -181,6 +181,11 @@ knit_prolog_engine <- function (options) {
   if (is.null(options$timeout) )
     options$timeout <- 10
 
+  # Push multiple lines on the same line
+  for ( l in which(endsWith(options$code, "\\")) ) { 
+    options$code[[l+1]] <- paste0(gsub("\\$", "", options$code[[l]]), " ", options$code[[l+1]]) 
+    options$code[[l]] <- ""  
+  }
 
   l_query <- gsub("^ *\\?- *(.*[^\\. ])[\\. ]*$", "\\1",
                   grep(pattern = "^ *\\?- *(.*)$",
