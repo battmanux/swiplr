@@ -206,9 +206,9 @@ knit_prolog_engine <- function (options) {
   #options$render = NULL
 
   # assign resutls in prolog_output
-  l_out <- vector(mode="list", length = length(out_list))
+   if ( length(out_list) > 0 ) {
+       l_out <- vector(mode="list", length = length(out_list))
  
-  if ( length(out_list) > 0 ) {
       names(out_list) <- as.character(paste0("result_", seq_along(out_list)))
       assign(envir = .GlobalEnv, x = "pl", value = out_list)
       assign(envir = .GlobalEnv, x = "prolog_output", value = out_list)
@@ -232,19 +232,21 @@ knit_prolog_engine <- function (options) {
         }
     
       }
+      
+      l_out <- unlist(l_out)
+      attr(l_out, "format") <- "markdown"
+      class(l_out) <- "knitr_kable"
+  } else {
+      l_out <- NULL
   }
   
-  l_out <- unlist(l_out)
-  attr(l_out, "format") <- "markdown"
-  class(l_out) <- "knitr_kable"
-
   options$highlights <- TRUE
   options$engine <- "prolog"
 
   class(options$code) <- "prolog"
 
   if (options$results == "hide")
-    l_out <- ""
+    l_out <- NULL
 
   knitr::engine_output(options, options$code, l_out)
 }
