@@ -150,7 +150,7 @@ pl_eval <- function(body, query="true", nsol=10 , verbose=F, timeout=10, data, .
         names(l_table) <- l_variables
 
         l_r_data <-  as.data.frame(l_table)
-        l_r_data <- l_r_data[,grep("^HIDDEN34342_", l_variables, invert = T)]
+        l_r_data <- l_r_data[grep("^HIDDEN34342_", l_variables, invert = T)]
 
       }
 
@@ -183,17 +183,17 @@ knit_prolog_engine <- function (options) {
 
   # Push multiple lines on the same line
   l_code <- options$code
-  for ( l in which(endsWith(l_code, "\\")) ) { 
-	    l_code[[l+1]] <- paste0(gsub("\\\\$", "", l_code[[l]]), " ", l_code[[l+1]]) 
-    l_code[[l]] <- ""  
+  for ( l in which(endsWith(l_code, "\\")) ) {
+	    l_code[[l+1]] <- paste0(gsub("\\\\$", "", l_code[[l]]), " ", l_code[[l+1]])
+    l_code[[l]] <- ""
     }
-  
-  l_query <- gsub("^ *\\?- *(.*[^\\. ])[\\. ]*$", "\\1", 
-		  grep(pattern = "^ *\\?- *(.*)$", 
+
+  l_query <- gsub("^ *\\?- *(.*[^\\. ])[\\. ]*$", "\\1",
+		  grep(pattern = "^ *\\?- *(.*)$",
 		       l_code, value = T))
 
   l_body <- paste(grep(pattern = "^ *\\?- *(.*)$",
-		       l_code, 
+		       l_code,
 		       value = T, invert = T),
 		  collapse = "\n")
 
@@ -217,38 +217,38 @@ knit_prolog_engine <- function (options) {
   # assign resutls in prolog_output
    if ( length(out_list) > 0 ) {
        l_out <- vector(mode="list", length = length(out_list))
- 
+
       names(out_list) <- as.character(paste0("result_", seq_along(out_list)))
       assign(envir = .GlobalEnv, x = "pl", value = out_list)
       assign(envir = .GlobalEnv, x = "prolog_output", value = out_list)
-    
+
       # If chunk is named, assigne results to a variable named after the chunk
       if ( !grepl("^unnamed-chunk", options$label) )
         assign(envir = .GlobalEnv, x = options$label, value = out_list[[length(out_list)]])
-    
+
       for ( i in seq_along(out_list) ) {
-    
+
         if (inherits(out_list[[i]], "data.frame")) {
           l_out_kable <- knitr::kable(out_list[[i]])
           for ( j in seq_along(l_out_kable) )
             l_out_kable[j] <- paste0("  ", l_out_kable[j])
-    
+
           l_out_kable[length(l_out_kable)+1] <- ""
           l_out[[i]] <- l_out_kable
-    
+
         } else {
           l_out[[i]] <- paste0(rjson::toJSON(out_list[[i]]), "\n")
         }
-    
+
       }
-      
+
       l_out <- unlist(l_out)
       attr(l_out, "format") <- "markdown"
       class(l_out) <- "knitr_kable"
   } else {
       l_out <- NULL
   }
-  
+
   options$highlights <- TRUE
   options$engine <- "prolog"
 
