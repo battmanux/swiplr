@@ -1,24 +1,37 @@
 fDecodeStdErr <- function(txtList, l_file) {
-  l_line <- as.numeric(gsub(".*.pl:(\\d+):.*$", '\\1', txtList[[1]]))
-  l_col  <- gsub(".*.pl:\\d+:(\\d*).*$", '\\1', txtList[[1]])
+  l_content <- readLines(l_file, warn = F)
 
-  l_msg <- c("\n",paste(
-    system(paste0("cat -n ", l_file, " | head -n ",l_line," | tail -n 4"), intern = T),
-    collapse = "\n"))
+  l_line        <- min(as.numeric(gsub(".*.pl:(\\d+):.*$", '\\1', txtList[[1]])),  length(l_content) - 7)
+  l_line_top    <- max(l_line - 2, 1)
+  l_line_bottom <- min(l_line + 2, length(l_content) - 6 )
+
+  l_col     <- gsub(".*.pl:\\d+:(\\d*).*$", '\\1', txtList[[1]])
+  l_warning <- gsub(".*.pl:\\d+:\\d*(.*)$", '\\1', txtList[[1]])
 
   if ( nchar(l_col) > 0 )
-    l_msg <- c(l_msg, "\t", paste( rep(" ", as.numeric(l_col)), sep = ''), "^\n")
-  if ( length(txtList) >= 2)
-    l_msg <- c(l_msg, txtList[[2]], "\n")
+    l_msg_pos <- paste(
+      unlist(list(rep(" ", as.numeric(l_col)-1),
+                  "^ ", l_warning)),
+      collapse = "")
+  else
+    l_msg_pos <- "^^^^^^^^^^^^^^^^"
 
+  l_msg <- c("\n",paste(
+    paste(l_content[l_line_top:(l_line)], collapse = "\n"),
+    l_msg_pos,
+    paste(l_content[(l_line+1):l_line_bottom], collapse = "\n"),
+    collapse = "\n", sep = "\n"))
+
+  l_msg <- paste0(
+    "Prolog details:",
+    paste(l_msg, collapse = "\n", sep = "\n"),
+    '\n',
+    paste(txtList[!grepl(pattern = "^\\[", txtList)], collapse = "\n", sep = "\n")
+    )
   warning(l_msg, call. = F)
 }
 
-fCleanStdOut <- function(txtList, verbose=F) {
-  if (verbose == TRUE) {
-    cat(paste(txtList[grepl(pattern = "^[^\\[]", txtList)], sep = "\n", collapse = "\n"))
-    cat("\n")
-  }
+fCleanStdOut <- function(txtList) {
   txtList[grepl(pattern = "^\\[", txtList)]
 }
 
@@ -37,6 +50,15 @@ fCleanStdOut <- function(txtList, verbose=F) {
 #' @export
 #'
 pl_eval <- function(body, query="true", nsol=10 , verbose=F, timeout=10, data, ...) {
+  opt <- options("swipl_bin_folder")
+
+  if (is.null(opt$swipl_bin_folder)) {
+    opt$swipl_bin_folder <- ""
+    options(opt)
+  }
+
+  l_swipl_bin_path <- opt$swipl_bin_folder
+
   if (missing(data))
     data <- list(...)
 
@@ -58,9 +80,13 @@ pl_eval <- function(body, query="true", nsol=10 , verbose=F, timeout=10, data, .
   cat(l_src, file = l_file)
 
   if ( verbose == TRUE )
-    cat(l_src, "\n")
+    cat(sep = "",
+        "---------------\n",
+        "SOURCE FILE:\n",
+        "---------------\n",
+        l_src,"\n")
 
-  l_cmd <- paste("/usr/local/bin/swipl -q ",
+  l_cmd <- paste(l_swipl_bin_path, "swipl -q ",
                   " -f ", l_file,
                   " -g main -t halt 2>&1 " ,
                    sep = " " )
@@ -70,8 +96,13 @@ pl_eval <- function(body, query="true", nsol=10 , verbose=F, timeout=10, data, .
   l_cmd_ret <- l_cmd_ret[l_cmd_ret != ""]
 
   if ( verbose == TRUE ) {
-    cat("prolog output:\n")
+    cat(sep = "",
+      "---------------\n",
+      "PROLOG OUTPUT:\n",
+      "---------------\n")
     cat(paste(l_cmd_ret, collapse = "\n"), "\n")
+    cat(
+      "---------------\n")
   }
 
   if ( grepl("^Warning:", l_cmd_ret[1]) ) {
@@ -85,7 +116,7 @@ pl_eval <- function(body, query="true", nsol=10 , verbose=F, timeout=10, data, .
 
   } else {
 
-    l_cmd_ret <- fCleanStdOut(l_cmd_ret, verbose = verbose)
+    l_cmd_ret <- fCleanStdOut(l_cmd_ret)
     l_r <- gregexpr("\\<_\\>|[A-Z][a-zA-Z0-9_]*",query)
     l_variables <- unlist(regmatches(query,  l_r))
     for ( v in which(l_variables == '_') ) { l_variables[[v]] <- paste0("HIDDEN34342_", v) }
