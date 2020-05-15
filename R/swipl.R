@@ -56,7 +56,10 @@ fCleanStdOut <- function(txtList) {
 #' @return p1
 #' @export
 #'
-pl_eval <- function(body, query="true", nsol=10 , verbose=F, timeout=10, data, ...) {
+pl_eval <- function(body, query="true",
+                    nsol=10 , verbose=F,
+                    timeout=10, profile=FALSE,
+                    data, ...) {
   opt <- options("swipl_bin_folder")
 
   if (is.null(opt$swipl_bin_folder)) {
@@ -75,11 +78,14 @@ pl_eval <- function(body, query="true", nsol=10 , verbose=F, timeout=10, data, .
   l_src <- paste(
     body,
     "\n",
-    paste0("main_query :-
+    paste0(
+    "writeqln(X) :- writeq(X), nl.\n",
+    "main_query :-
            term_variables( (", query, "), ListVars),
            findnsols(",nsol,",ListVars , (", query, "), ListRes),
-           maplist(writeln, ListRes).",
-           "\nmain :- call_with_time_limit(", timeout,", main_query)."),
+           maplist(writeqln, ListRes).\n",
+    "main :- call_with_time_limit(", timeout,", main_query).\n",
+    "perf :- profile(main, [top(10), cummulative(true)]), show_profile([]).\n"),
     collapse = "", sep = "\n"
   )
 
@@ -93,9 +99,9 @@ pl_eval <- function(body, query="true", nsol=10 , verbose=F, timeout=10, data, .
         "---------------\n",
         l_src,"\n")
 
-  l_cmd <- paste(l_swipl_bin_path, "swipl -q ",
+  l_cmd <- paste(l_swipl_bin_path, "swipl  --nopce -q ",
                   " -f ", l_file,
-                  " -g main -t halt 2>&1 " ,
+                  " -g ", ifelse(profile,"perf", "main")," -t halt 2>&1 " ,
                    sep = "" )
 
   suppressWarnings(
@@ -124,36 +130,66 @@ pl_eval <- function(body, query="true", nsol=10 , verbose=F, timeout=10, data, .
     fDecodeStdErr(l_cmd_ret, l_file)
 
   } else {
+    if (profile == TRUE) {
+      warning("Profiling:\n",
+        paste(grep("^[^[]", l_cmd_ret, value = T), collapse = "\n"),
+        call. = F
+      )
+    }
 
     l_cmd_ret <- fCleanStdOut(l_cmd_ret)
     l_r <- gregexpr("\\<_\\>|[A-Z][a-zA-Z0-9_]*",query)
     l_variables <- unlist(regmatches(query,  l_r))
-    for ( v in which(l_variables == '_') ) { l_variables[[v]] <- paste0("HIDDEN34342_", v) }
+    for (v in which(l_variables == '_') ) { l_variables[[v]] <- paste0("HIDDEN34342_", v) }
     l_variables <- unique(l_variables)
 
     if (length(l_cmd_ret) > 0) {
+      safe_eval_env <- new.env(parent = emptyenv())
+      safe_eval_env$`+` <- `+`
+      safe_eval_env$`-` <- `-`
+      safe_eval_env$`/` <- `/`
+      safe_eval_env$`*` <- `*`
+      safe_eval_env$`c` <- `c`
 
       l_r_data <- lapply(l_cmd_ret, function(x) {
         x <- gsub("]-1", "]", x)
-        if (x=="[]") {
+        if (x == "[]") {
           l_ret <- TRUE
         } else if ( startsWith(x, "[") ) {
           x1 <- gsub("(\\<_G?[0-9]+)", "`\\1`", x)
           x2 <- gsub("\\[", "c(", x1)
-          x3 <- gsub("\\]", ")",  x2)
+          x3 <- gsub("\\]", ")", x2)
+          #x4 <- gsub("([\\(\\), ]*)([^\\(\\), ][^\\(\\),]+)([\\), ])", "\\1'\\2'\\3", x3)
+          #x5 <- gsub(",([a-zA-Z]),", ",'\\1',", x4)
+
           l_err <- try({
             l_l <- parse(text = x3)
             l_ret <- unlist(lapply(l_l[[1]][2:length(l_l[[1]])],
-                                   function(x) if ( is.language(x) )
-                                     paste(capture.output(print(x)), collapse = "")
-                                   else
-                                     paste(capture.output(cat(x)), collapse = "")
+                                   function(x) {
+
+                                     if ( is.numeric(x) ) {
+                                       ret <- as.numeric(x)
+                                     } else if ( is.character(x) ) {
+                                       ret <- x
+                                     } else if ( is.symbol(x) ) {
+                                       ret <- as.character(x)
+                                     } else if ( is.language(x) ) {
+                                       ret <- paste(capture.output(print(x)), collapse = "")
+                                       try(silent = T, {
+                                          ret <- paste0(unlist(eval(x, envir = safe_eval_env)), collapse = ",")
+                                        })
+                                     } else {
+                                       ret <- paste(capture.output(print(x)), collapse = "")
+                                     }
+
+                                     ret
+                                   }
             ) )
           }, silent = T)
 
           if (inherits(l_err, "try-error")) {
             l_ret <- character(length(l_variables))
-            l_ret[[1]] <- x1
+            l_ret[[1]] <- substr(x3, 3, nchar(x3) - 1)
           }
 
         } else {
@@ -192,7 +228,7 @@ pl_eval <- function(body, query="true", nsol=10 , verbose=F, timeout=10, data, .
 
         names(l_table) <- l_variables
 
-        l_r_data <-  as.data.frame(l_table)
+        l_r_data <-  as.data.frame(l_table, stringsAsFactors = F)
 
         l_silent_vars <-
           grepl("._$",           l_variables) |
@@ -233,9 +269,12 @@ knit_prolog_engine <- function (options) {
   if (is.null(options$timeout) )
     options$timeout <- 10
 
+  if (is.null(options$profile) )
+    options$profile <- FALSE
+
   # Push multiple lines on the same line
   l_code <- options$code
-  for ( l in which(endsWith(l_code, "\\")) ) {
+  for (l in which(endsWith(l_code, "\\")) ) {
 	    l_code[[l+1]] <- paste0(gsub("\\\\$", "", l_code[[l]]), " ", l_code[[l+1]])
     l_code[[l]] <- ""
     }
@@ -252,7 +291,7 @@ knit_prolog_engine <- function (options) {
 
   if (options$eval) {
     out_list <- lapply(l_query, function(x) pl_eval(l_body, query = x, nsol = options$maxnsols,
-                                                    timeout = options$timeout,
+                                                    timeout = options$timeout, profile = options$profile,
                                                     verbose = (!is.null(options$verbose) && options$verbose ),
                                                     data = .GlobalEnv))
   }  else
@@ -312,3 +351,21 @@ knit_prolog_engine <- function (options) {
   knitr::engine_output(options, options$code, l_out)
 }
 
+
+#' Title
+#'
+#' @param data_in data.frame to convert in list of named rows
+#'
+#' @return a list of list with data
+#' @export
+#'
+#' @examples
+#' by_row_iris <- r_to_pro(iris)
+#'
+r_to_pro <- function(data_in) {
+  lapply(seq(nrow(data_in)), function(i) {
+    l_out <- as.list(data_in[i,])
+    names(l_out) <- gsub("\\.", "_", names(l_out))
+    return(l_out)
+  })
+}
