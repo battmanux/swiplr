@@ -277,7 +277,7 @@ knit_prolog_engine <- function (options) {
           l_out[[i]] <- l_out_kable
 
         } else {
-          l_out[[i]] <- paste0(rjson::toJSON(out_list[[i]]), "\n")
+          l_out[[i]] <- out_list[[i]]
         }
 
       }
