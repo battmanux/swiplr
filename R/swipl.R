@@ -98,8 +98,10 @@ pl_eval <- function(body, query="true", nsol=10 , verbose=F, timeout=10, data, .
                   " -g main -t halt 2>&1 " ,
                    sep = " " )
 
-  l_cmd_ret <- system(l_cmd, intern = T, wait = T )
-
+  suppressWarnings(
+    l_cmd_ret <- system(l_cmd, intern = T, wait = T )
+  )
+	
   l_cmd_ret <- l_cmd_ret[l_cmd_ret != ""]
 
   if ( verbose == TRUE ) {
