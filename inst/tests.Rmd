@@ -279,4 +279,14 @@ should_we_calculate(bug, c(9, 3)).
 ?- should_we_calculate(CASE, RESULT)
 ```
 
+```{prolog foo_list}
+foo(bar).
+foo(other).
+
+?- foo(FOO).
+```
+
+```{r}
+str(foo_list)
+```
 
