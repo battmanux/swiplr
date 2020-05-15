@@ -4,7 +4,7 @@ fDecodeStdErr <- function(txtList, l_file) {
   suppressWarnings(
     l_line        <- min(as.numeric(gsub(".*.pl:(\\d+):.*$", '\\1', txtList[[1]])),  length(l_content) - 7)
   )
-  if ( ! is.na(l_line) ) {	
+  if ( ! is.na(l_line) ) {
     l_line_top    <- max(l_line - 2, 1)
     l_line_bottom <- min(l_line + 2, length(l_content) - 6 )
 
@@ -83,7 +83,7 @@ pl_eval <- function(body, query="true", nsol=10 , verbose=F, timeout=10, data, .
     collapse = "", sep = "\n"
   )
 
-  l_src <- whisker::whisker.render(l_src, data=data)
+  l_src <- whisker::whisker.render(l_src, data = data)
   cat(l_src, file = l_file)
 
   if ( verbose == TRUE )
@@ -96,12 +96,12 @@ pl_eval <- function(body, query="true", nsol=10 , verbose=F, timeout=10, data, .
   l_cmd <- paste(l_swipl_bin_path, "swipl -q ",
                   " -f ", l_file,
                   " -g main -t halt 2>&1 " ,
-                   sep = " " )
+                   sep = "" )
 
   suppressWarnings(
     l_cmd_ret <- system(l_cmd, intern = T, wait = T )
   )
-	
+
   l_cmd_ret <- l_cmd_ret[l_cmd_ret != ""]
 
   if ( verbose == TRUE ) {
@@ -160,9 +160,9 @@ pl_eval <- function(body, query="true", nsol=10 , verbose=F, timeout=10, data, .
           l_ret <- character(length(l_variables))
           l_ret[[1]] <- paste0("#msg: ", x)
         }
-        
-	if ( length(l_ret) == 0 )
-	  l_ret <- FALSE
+
+        if ( length(l_ret) == 0 )
+          l_ret <- FALSE
 
         return(l_ret)
 
@@ -193,7 +193,12 @@ pl_eval <- function(body, query="true", nsol=10 , verbose=F, timeout=10, data, .
         names(l_table) <- l_variables
 
         l_r_data <-  as.data.frame(l_table)
-        l_r_data <- l_r_data[grep("^HIDDEN34342_", l_variables, invert = T)]
+
+        l_silent_vars <-
+          grepl("._$",           l_variables) |
+          grepl("^HIDDEN34342_", l_variables)
+
+        l_r_data <- l_r_data[which(!l_silent_vars)]
 
       }
 
@@ -201,6 +206,10 @@ pl_eval <- function(body, query="true", nsol=10 , verbose=F, timeout=10, data, .
       l_r_data <- paste("res=",l_r_data)
     }
   }
+
+  # in case we have no output at all
+  if ( length(l_r_data) == 0 )
+    l_r_data <- list(FALSE)
 
   return(l_r_data)
 }
