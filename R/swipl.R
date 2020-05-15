@@ -160,6 +160,9 @@ pl_eval <- function(body, query="true", nsol=10 , verbose=F, timeout=10, data, .
           l_ret <- character(length(l_variables))
           l_ret[[1]] <- paste0("#msg: ", x)
         }
+        
+	if ( length(l_ret) == 0 )
+	  l_ret <- FALSE
 
         return(l_ret)
 
