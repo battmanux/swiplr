@@ -1,8 +1,10 @@
 ---
-title: "LogEx"
+title: "SWI-Prolog markdown"
 author: "Emmanuel BATT"
 date: "11/06/2019"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r setup}
@@ -66,20 +68,13 @@ a_frère(X1, X2)  :- a_maman(X1, Y), a_maman(X2, Y), dif(X1,X2).
 
 ```{r}
 
-r_to_pro <- function(data_in) {
-  lapply(seq(nrow(data_in)), function(i) {
-    l_out <- as.list(data_in[i,])
-    names(l_out) <- gsub("\\.", "_", names(l_out))
-    return(l_out)
-    })
-}
-  
 some_name <- "john"
+
 value_list <- paste0("bar_", 1:3)
 
 named_list <- list(
   var1 = list(
-    field1 = "sömé_àçênts", 
+    field1 = "sömé àçênts", 
     field2 = 66), 
   var2 = "bar0")
 
@@ -94,7 +89,7 @@ One can use  `whisker::whisker.render` syntax.
 % Inject the content of R some_name variable
 foo({{ some_name }}).
 
-foo({{ named_list.var1.field1 }}).
+foo('{{ named_list.var1.field1 }}').
 
 % Iterates through the list of values in R value_list vector
 {{#value_list}}
@@ -102,6 +97,7 @@ foo({{ named_list.var1.field1 }}).
 {{/value_list}}
 
 % Iterate through a table (list of rows)
+% use r_to_pro() to convert data.frame to the right format
 {{#some_table}}
   some_table({{Species}},{{Sepal_Length}},{{Sepal_Width}}).
 {{/some_table}}
@@ -113,8 +109,6 @@ foo({{ named_list.var1.field1 }}).
 And then get back values in R
 
 ```{r}
-
-names(prolog_output)
 
 prolog_output$result_1
 
@@ -144,6 +138,7 @@ options(swipl_bin_folder = "/usr/local/bin/")
 ```
 
 use local library
+
 ```{prolog}
 
 :- use_module(library(pita)).
@@ -166,7 +161,7 @@ age(enfant):3/10 ; age(ado):3/10 ; age(adulte):3/10  :-
 ?- prob(visage_type(X), age(enfant), P)
 ```
 
-```{prolog mc_var}
+```{prolog mc_var, verbose=T}
 :- use_module(library(mcintyre)).
 :- mc.
 :- begin_lpad.
@@ -195,12 +190,12 @@ gauss(Mean,Variance,S):-
   StdDev is sqrt(Variance),
   S is StdDev * S0 + Mean.
 
-?- mc_sample_arg(val(0,X_),30,X_,L0)
+?- mc_sample_arg(val(0,X_),20,X_,L0)
 ```
 
 ```{r}
-vect <- eval(parse(text = as.character(mc_var$L0)))
-hist(vect)
+L0 <- as.numeric(unlist(strsplit(mc_var$L0, ",")))
+hist(L0)
 ```
 
 # Other
@@ -231,4 +226,57 @@ are(X, human_adult) :- is_a(X, human), age(X, AGE), AGE > 18.
 ?- are(WHO, WHAT)
 ?- is_a(Class, Super), are(Super, WHAT)
 ```
+
+## strange cases
+
+```{prolog}
+
+foo(no_space).
+foo('with space').
+foo([this, is, a, list]).
+foo([this, is, a, 'list with space']).
+foo([this, is, a, [list, [of, list]]]).
+foo(this(has(pred))).
+foo(this(has('pred with space'))).
+foo('even , } { } ) or ( works in atom').
+
+?- foo(X)
+```
+
+## use profiling
+
+```{prolog, profile=T}
+
+bar(1).
+bar(2).
+bar(3).
+
+foo(a).
+foo(b).
+foo(c).
+
+% without termination, we search for the entire space
+% foo([], []).
+
+foo([H1|T1], [H2|T2]) :- foo(H1), bar(H2), foo(T1, T2).
+
+?- foo(X, Y)
+```
+
+## known limitations
+
+```{prolog, verbose=T}
+
+should_we_calculate(case1, 1+1).
+should_we_calculate(case2, 2*5).
+should_we_calculate(case3, 2/5).
+should_we_calculate(case4, 2-5).
+should_we_calculate(but5, 5**2).
+should_we_calculate(but6, sqrt(9)).
+should_we_calculate(bug, c(9, 3)). 
+% this is due to collision with R c() function
+
+?- should_we_calculate(CASE, RESULT)
+```
+
 
