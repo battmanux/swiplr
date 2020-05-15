@@ -7,24 +7,26 @@ To call prolog from Rmd files and generate prolog based reports from RStudio.
 
 # Install
 
-first install swi-prolog and add swipl binary in your path.
-I tested it on both windows and linux. 
-64bit Windows version seemed to miss swipl.exe, but 32bit one works fine.
+First of all, install SWI-Prolog. Make sure swipl binary is in your path.
 
-It could work with other versions of prolog, however it is untested.
+> I tested it on both windows and linux. 
+> 64bit Windows seemed to miss swipl.exe, but 32bit works fine.
+
+Then you can install the R package:
 
 ```r
+# you need devtools, did you try install.packages(devtools) ?
 devtools::install_github("https://github.com/battmanux/swiplr.git")
 ```
 # Basic usage
 
-load R library
+Load R library
 ```{r setup}
 # this is an R chunk
 library(swiplr)
 ```
 
-add a prolog chunk
+Add a prolog chunk
 ```{prolog foo_list}
 % this is some prolog code
 foo(bar).
@@ -39,7 +41,7 @@ foo(other).
   |bar   |
   |other |
 
-this returns a nice table `foo_list` that you can use from R
+This returns a nice table `foo_list` that you can use from R
 
 ```{r}
 # This is some R code calling prolog output 
@@ -53,6 +55,6 @@ str(foo_list)
  $ FOO: chr  "bar" "other"
 ```
 
-more details in [inst/tests.Rmd](inst/tests.Rmd)
+More details in [inst/tests.Rmd](inst/tests.Rmd)
 
 Clean R documentation is not there yet, but main function is `pl_eval`
