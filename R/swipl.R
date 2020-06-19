@@ -51,6 +51,7 @@ fCleanStdOut <- function(txtList) {
 #' @param verbose v
 #' @param timeout p1
 #' @param data p1
+#' @param mode query, profile, duration (default query)
 #' @param ... p1
 #'
 #' @return p1
@@ -58,9 +59,19 @@ fCleanStdOut <- function(txtList) {
 #'
 pl_eval <- function(body, query="true",
                     nsol=10 , verbose=F,
-                    timeout=10, profile=FALSE,
+                    timeout=10, mode = "query",
                     data, ...) {
   opt <- options("swipl_bin_folder")
+
+  l_mode_map <- c(
+    query='main_print_tl',
+    profile='main_with_profile_tl',
+    duration='main_with_duration_tl'
+  )
+
+  # If unknown mode, try to use it as predicate
+  if (! mode %in% names(l_mode_map) )
+    l_mode_map[[mode]] <- mode
 
   if (is.null(opt$swipl_bin_folder)) {
     opt$swipl_bin_folder <- ""
@@ -79,13 +90,28 @@ pl_eval <- function(body, query="true",
     body,
     "\n",
     paste0(
-    "writeqln(X) :- writeq(X), nl.\n",
-    "main_query :-
+    "writeqln(X) :- writeq(X), nl.\n\n",
+    "main_query(ListRes) :-
            term_variables( (", query, "), ListVars),
-           findnsols(",nsol,",ListVars , (", query, "), ListRes),
-           maplist(writeqln, ListRes).\n",
-    "main :- call_with_time_limit(", timeout,", main_query).\n",
-    "perf :- profile(main, [top(10), cummulative(true)]), show_profile([]).\n"),
+           findnsols(",nsol,",ListVars , (", query, "), ListRes).\n\n",
+    "main_print :-
+           main_query(ListRes),
+           maplist(writeqln, ListRes).\n\n",
+    "main_with_duration    :-
+           statistics(walltime, []),
+           main_query(_),
+           statistics(walltime, [_,ExecutionTime]),
+           nl,write('# Execution took: '), write(ExecutionTime), write(' ms.'), nl.\n\n",
+    "main_with_profile :-
+           profile(main(_), [top(10), cummulative(true)]),
+           show_profile([]).\n\n",
+    "main_print_tl :-
+           call_with_time_limit(", timeout,", main_print).\n\n",
+    "main_with_duration_tl :-
+           call_with_time_limit(", timeout,", main_with_duration).\n\n",
+    "main_with_profile_tl :-
+           call_with_time_limit(", timeout,", main_with_profile).\n\n",
+    "main :- main_print_tl.\n\n"),
     collapse = "", sep = "\n"
   )
 
@@ -101,7 +127,7 @@ pl_eval <- function(body, query="true",
 
   l_cmd <- paste(l_swipl_bin_path, "swipl  --nopce -q ",
                   " -f ", l_file,
-                  " -g ", ifelse(profile,"perf", "main")," -t halt 2>&1 " ,
+                  " -g ", l_mode_map[[mode]]," -t halt 2>&1 " ,
                    sep = "" )
 
   suppressWarnings(
@@ -130,116 +156,130 @@ pl_eval <- function(body, query="true",
     fDecodeStdErr(l_cmd_ret, l_file)
 
   } else {
-    if (profile == TRUE) {
+    l_r_data <- list()
+
+    if (mode == "profile") {
       warning("Profiling:\n",
         paste(grep("^[^[]", l_cmd_ret, value = T), collapse = "\n"),
         call. = F
       )
     }
 
-    l_cmd_ret <- fCleanStdOut(l_cmd_ret)
-    l_r <- gregexpr("\\<_\\>|[A-Z][a-zA-Z0-9_]*",query)
-    l_variables <- unlist(regmatches(query,  l_r))
-    for (v in which(l_variables == '_') ) { l_variables[[v]] <- paste0("HIDDEN34342_", v) }
-    l_variables <- unique(l_variables)
+    if (mode == "duration") {
+      l_value <- paste(
+        grep("^# Execution took: \\d+ ms.$", l_cmd_ret, value = T)
+        , collapse = "\n")
 
-    if (length(l_cmd_ret) > 0) {
-      safe_eval_env <- new.env(parent = emptyenv())
-      safe_eval_env$`+` <- `+`
-      safe_eval_env$`-` <- `-`
-      safe_eval_env$`/` <- `/`
-      safe_eval_env$`*` <- `*`
-      safe_eval_env$`c` <- `c`
+      l_r_data <- as.numeric(
+        gsub("^# Execution took: (\\d+) ms.$", "\\1", l_value))
+    }
 
-      l_r_data <- lapply(l_cmd_ret, function(x) {
-        x <- gsub("]-1", "]", x)
-        if (x == "[]") {
-          l_ret <- TRUE
-        } else if ( startsWith(x, "[") ) {
-          x1 <- gsub("(\\<_G?[0-9]+)", "`\\1`", x)
-          x2 <- gsub("\\[", "c(", x1)
-          x3 <- gsub("\\]", ")", x2)
-          #x4 <- gsub("([\\(\\), ]*)([^\\(\\), ][^\\(\\),]+)([\\), ])", "\\1'\\2'\\3", x3)
-          #x5 <- gsub(",([a-zA-Z]),", ",'\\1',", x4)
+    if (mode == "query") {
 
-          l_err <- try({
-            l_l <- parse(text = x3)
-            l_ret <- unlist(lapply(l_l[[1]][2:length(l_l[[1]])],
-                                   function(x) {
+      l_cmd_ret <- fCleanStdOut(l_cmd_ret)
+      l_r <- gregexpr("\\<_\\>|[A-Z][a-zA-Z0-9_]*",query)
+      l_variables <- unlist(regmatches(query,  l_r))
+      for (v in which(l_variables == '_') ) { l_variables[[v]] <- paste0("HIDDEN34342_", v) }
+      l_variables <- unique(l_variables)
 
-                                     if ( is.numeric(x) ) {
-                                       ret <- as.numeric(x)
-                                     } else if ( is.character(x) ) {
-                                       ret <- x
-                                     } else if ( is.symbol(x) ) {
-                                       ret <- as.character(x)
-                                     } else if ( is.language(x) ) {
-                                       ret <- paste(capture.output(print(x)), collapse = "")
-                                       try(silent = T, {
-                                          ret <- paste0(unlist(eval(x, envir = safe_eval_env)), collapse = ",")
-                                        })
-                                     } else {
-                                       ret <- paste(capture.output(print(x)), collapse = "")
+      if (length(l_cmd_ret) > 0) {
+        safe_eval_env <- new.env(parent = emptyenv())
+        safe_eval_env$`+` <- `+`
+        safe_eval_env$`-` <- `-`
+        safe_eval_env$`/` <- `/`
+        safe_eval_env$`*` <- `*`
+        safe_eval_env$`c` <- `c`
+
+        l_r_data <- lapply(l_cmd_ret, function(x) {
+          x <- gsub("]-1", "]", x)
+          if (x == "[]") {
+            l_ret <- TRUE
+          } else if ( startsWith(x, "[") ) {
+            x1 <- gsub("(\\<_G?[0-9]+)", "`\\1`", x)
+            x2 <- gsub("\\[", "c(", x1)
+            x3 <- gsub("\\]", ")", x2)
+            #x4 <- gsub("([\\(\\), ]*)([^\\(\\), ][^\\(\\),]+)([\\), ])", "\\1'\\2'\\3", x3)
+            #x5 <- gsub(",([a-zA-Z]),", ",'\\1',", x4)
+
+            l_err <- try({
+              l_l <- parse(text = x3)
+              l_ret <- unlist(lapply(l_l[[1]][2:length(l_l[[1]])],
+                                     function(x) {
+
+                                       if ( is.numeric(x) ) {
+                                         ret <- as.numeric(x)
+                                       } else if ( is.character(x) ) {
+                                         ret <- x
+                                       } else if ( is.symbol(x) ) {
+                                         ret <- as.character(x)
+                                       } else if ( is.language(x) ) {
+                                         ret <- paste(capture.output(print(x)), collapse = "")
+                                         try(silent = T, {
+                                            ret <- paste0(unlist(eval(x, envir = safe_eval_env)), collapse = ",")
+                                          })
+                                       } else {
+                                         ret <- paste(capture.output(print(x)), collapse = "")
+                                       }
+
+                                       ret
                                      }
+              ) )
+            }, silent = T)
 
-                                     ret
-                                   }
-            ) )
-          }, silent = T)
+            if (inherits(l_err, "try-error")) {
+              l_ret <- character(length(l_variables))
+              l_ret[[1]] <- substr(x3, 3, nchar(x3) - 1)
+            }
 
-          if (inherits(l_err, "try-error")) {
+          } else {
             l_ret <- character(length(l_variables))
-            l_ret[[1]] <- substr(x3, 3, nchar(x3) - 1)
+            l_ret[[1]] <- paste0("#msg: ", x)
           }
 
-        } else {
-          l_ret <- character(length(l_variables))
-          l_ret[[1]] <- paste0("#msg: ", x)
-        }
+          if ( length(l_ret) == 0 )
+            l_ret <- FALSE
 
-        if ( length(l_ret) == 0 )
-          l_ret <- FALSE
+          return(l_ret)
 
-        return(l_ret)
-
-      }  )
-
-    } else {
-      l_r_data <- list()
-    }
-
-    if ( length(l_r_data) == 0) {
-      l_r_data <- list(lapply(l_variables, function(x) c(NA) ) )
-    }
-
-    l_sizes <- unlist(lapply(l_r_data, length))
-    # print(l_sizes)
-    if ( min(l_sizes) == max(l_sizes) ) {
-
-      if ( length(l_variables) == 0 ) {
-
-        l_r_data <-  l_r_data[[1]]
+        }  )
 
       } else {
-
-        l_table <- lapply(seq_along(l_variables), function(i)  {
-          sapply(l_r_data, function(x) unlist(x[[i]], use.names = T))
-        })
-
-        names(l_table) <- l_variables
-
-        l_r_data <-  as.data.frame(l_table, stringsAsFactors = F)
-
-        l_silent_vars <-
-          grepl("._$",           l_variables) |
-          grepl("^HIDDEN34342_", l_variables)
-
-        l_r_data <- l_r_data[which(!l_silent_vars)]
-
+        l_r_data <- list()
       }
 
-    } else {
-      l_r_data <- paste("res=",l_r_data)
+      if ( length(l_r_data) == 0) {
+        l_r_data <- list(lapply(l_variables, function(x) c(NA) ) )
+      }
+
+      l_sizes <- unlist(lapply(l_r_data, length))
+      # print(l_sizes)
+      if ( min(l_sizes) == max(l_sizes) ) {
+
+        if ( length(l_variables) == 0 ) {
+
+          l_r_data <-  l_r_data[[1]]
+
+        } else {
+
+          l_table <- lapply(seq_along(l_variables), function(i)  {
+            sapply(l_r_data, function(x) unlist(x[[i]], use.names = T))
+          })
+
+          names(l_table) <- l_variables
+
+          l_r_data <-  as.data.frame(l_table, stringsAsFactors = F)
+
+          l_silent_vars <-
+            grepl("._$",           l_variables) |
+            grepl("^HIDDEN34342_", l_variables)
+
+          l_r_data <- l_r_data[which(!l_silent_vars)]
+
+        }
+
+      } else {
+        l_r_data <- paste("res=",l_r_data)
+      }
     }
   }
 
@@ -269,8 +309,8 @@ knit_prolog_engine <- function (options) {
   if (is.null(options$timeout) )
     options$timeout <- 10
 
-  if (is.null(options$profile) )
-    options$profile <- FALSE
+  if (is.null(options$mode) )
+    options$mode <- "query"
 
   # Push multiple lines on the same line
   l_code <- options$code
@@ -291,7 +331,7 @@ knit_prolog_engine <- function (options) {
 
   if (options$eval) {
     out_list <- lapply(l_query, function(x) pl_eval(l_body, query = x, nsol = options$maxnsols,
-                                                    timeout = options$timeout, profile = options$profile,
+                                                    timeout = options$timeout, mode = options$mode,
                                                     verbose = (!is.null(options$verbose) && options$verbose ),
                                                     data = .GlobalEnv))
   }  else
