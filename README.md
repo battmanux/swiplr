@@ -21,13 +21,13 @@ devtools::install_github("https://github.com/battmanux/swiplr.git")
 # Basic usage
 
 Load R library
-```{r setup}
+```r
 # this is an R chunk
 library(swiplr)
 ```
 
 Add a prolog chunk
-```{prolog foo_list}
+```prolog
 % this is some prolog code
 foo(bar).
 foo(other).
@@ -43,14 +43,14 @@ foo(other).
 
 This returns a nice table `foo_list` that you can use from R
 
-```{r}
+```r
 # This is some R code calling prolog output 
 # R variable is named after prolog chunk label
 
 str(foo_list)
 ```
 
-```
+```r
 'data.frame':	2 obs. of  1 variable:
  $ FOO: chr  "bar" "other"
 ```
@@ -58,3 +58,6 @@ str(foo_list)
 More details in [inst/tests.Rmd](inst/tests.Rmd)
 
 Clean R documentation is not there yet, but main function is `pl_eval`
+```r
+foo <- pl_eval(body = "foo(bar).", query = "foo(FOO)")
+```
