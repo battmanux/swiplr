@@ -103,7 +103,7 @@ pl_eval <- function(body, query="true",
            statistics(walltime, [_,ExecutionTime]),
            nl,write('# Execution took: '), write(ExecutionTime), write(' ms.'), nl.\n\n",
     "main_with_profile :-
-           profile(main(_), [top(10), cummulative(true)]),
+           profile(main_query(_), [top(20), cummulative(true)]),
            show_profile([]).\n\n",
     "main_print_tl :-
            call_with_time_limit(", timeout,", main_print).\n\n",
