@@ -114,13 +114,52 @@ prolog_output$result_1
 
 ```
 
+# Load previouse chunks
+
+This `database` chunk describe some predicates
+
+```{prolog database}
+
+foo(bar1).
+foo(bar2).
+
+?- foo(Y)
+```
+
+This chunk load the database chunk and query.
+
+```{prolog}
+
+{{ swiplr_chunks.database }}
+
+foo(bar4).
+
+?- foo(X).
+```
+
+```{prolog}
+
+{{ swiplr_chunks.database }}
+
+?- foo(X).
+```
+
+```{prolog a }
+
+{{ swiplr_chunks.database }}
+
+foo(prev1).
+
+?- foo(X).
+```
+
 
 
 # Degraded modes
 
 ## Infinite loop
 
-```{prolog, timeout=1}
+```{prolog, timeout=1, eval=F}
 
 s1(A) :- s2(A).
 s2(A) :- s1(A).
@@ -288,5 +327,15 @@ foo(other).
 
 ```{r}
 str(foo_list)
+```
+
+
+## Build an app
+
+```{prolog}
+
+run :- writeln('hello world').
+
+?- qsave_program('app.bin', [goal(run), stand_alone(true), foreign(save)]).
 ```
 

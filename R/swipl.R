@@ -300,6 +300,9 @@ pl_eval <- function(body, query="true",
 #'
 knit_prolog_engine <- function (options) {
 
+  if (is.null(options$verbose) )
+    options$verbose <- FALSE
+
   if (is.null(options$maxnsols) )
     options$maxnsols <- 10
 
@@ -328,26 +331,26 @@ knit_prolog_engine <- function (options) {
 		       value = T, invert = T),
 		  collapse = "\n")
 
+  l_eval_env <- new.env(parent = .GlobalEnv)
+  l_eval_env$swiplr_chunks <- .GlobalEnv$.swiplr_chunks
 
   if (options$eval) {
     out_list <- lapply(l_query, function(x) pl_eval(l_body, query = x, nsol = options$maxnsols,
                                                     timeout = options$timeout, mode = options$mode,
                                                     verbose = (!is.null(options$verbose) && options$verbose ),
-                                                    data = .GlobalEnv))
+                                                    data = l_eval_env))
   }  else
     out_list <- lapply(l_query, function(x) "")
 
-  if (options$silent == TRUE)
+  if (options$silent == TRUE || options$eval == FALSE)
     options$results = "hide"
-  else if (options$results == "hide") {}
+  if (options$results == "hide") {}
   else
     options$results = "asis"
 
-  #options$render = NULL
-
   # assign resutls in prolog_output
-   if ( length(out_list) > 0 ) {
-       l_out <- vector(mode="list", length = length(out_list))
+   if ( length(out_list) > 0 && options$eval == TRUE ) {
+       l_out <- vector(mode = "list", length = length(out_list))
 
       names(out_list) <- as.character(paste0("result_", seq_along(out_list)))
       assign(envir = .GlobalEnv, x = "pl", value = out_list)
@@ -371,6 +374,9 @@ knit_prolog_engine <- function (options) {
           l_out[[i]] <- out_list[[i]]
         }
 
+        l_out[[i]] <- paste0("Query: ", l_query[[i]], "\n\n",
+                             paste(l_out[[i]], collapse = "\n") )
+
       }
 
       l_out <- unlist(l_out)
@@ -379,6 +385,18 @@ knit_prolog_engine <- function (options) {
   } else {
       l_out <- NULL
   }
+
+  # Save named notebook chunks
+  if ( is.null(.GlobalEnv$.swiplr_chunks) ) .GlobalEnv$.swiplr_chunks <- list()
+
+  if ( !grepl(pattern = "^unnamed-chunk-.*", x = options$label) ) {
+
+    # save current chunk content
+    l_computed_body <- whisker::whisker.render(l_body, data = l_eval_env)
+    .GlobalEnv$.swiplr_chunks[[options$label]] <- paste(l_computed_body, sep = "\n")
+
+  }
+
 
   options$highlights <- TRUE
   options$engine <- "prolog"
@@ -409,3 +427,4 @@ r_to_pro <- function(data_in) {
     return(l_out)
   })
 }
+
