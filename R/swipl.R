@@ -428,3 +428,93 @@ r_to_pro <- function(data_in) {
   })
 }
 
+#' run a prolog query an plot the result as graph
+#'
+#' @param body prolog chunk. use "{{{swiplr_chunks.<label>}}}" to use a notebook chunk
+#' @param query query to convert to graph. Must contain FROM, TO, and LINK
+#' @param timeout maximum query duration
+#' @param maxnsols maximum number of solutions (default 100)
+#'
+#' @example
+#' plot_query("foo(node, target, use).", "foo(FROM, TO, LINK)")
+#'
+#' @export
+plot_query <- function(body, query, maxnsols=100, timeout = 10 ) {
+
+  l_eval_env <- new.env(parent = .GlobalEnv)
+  l_eval_env$swiplr_chunks <- .GlobalEnv$.swiplr_chunks
+
+  l_data <- pl_eval(body,
+                    query = query,
+                    nsol = maxnsols,
+                    timeout = timeout,
+                    mode = "query",
+                    data = l_eval_env)
+
+  if ( !all(c("FROM", "TO") %in% names(l_data)))
+    error("FROM and TO shall be in the query variables")
+
+  l_node_from <- unique(l_data$FROM)
+  l_node_to <- unique(l_data$TO)
+  l_node_names <- unique(c(l_node_from, l_node_to))
+
+  l_nodes <- data.frame( id = l_node_names,
+                         label = l_node_names,
+                         group = as.character(l_node_names %in% l_data$FROM))
+
+  l_links <- data.frame( from = l_data$FROM,
+                         to = l_data$TO,
+                         label = l_data$LINK)
+  l_links$arrows <- "to"
+
+
+  visNetwork::visNetwork(l_nodes, l_links, width = "100%")
+
+}
+
+
+
+#' run a prolog query an plot the result as a wide table
+#'
+#' @param body prolog chunk. use "{{{swiplr_chunks.<label>}}}" to use a notebook chunk
+#' @param query query to convert to graph. Must contain FROM, TO, and LINK
+#' @param timeout maximum query duration
+#' @param maxnsols maximum number of solutions (default 100)
+#'
+#' @return, data.frame
+#' @export
+#'
+#' @examples
+#'
+#'
+table_query <- function(body, query, maxnsols=100, timeout = 10 ) {
+
+  l_eval_env <- new.env(parent = .GlobalEnv)
+  l_eval_env$swiplr_chunks <- .GlobalEnv$.swiplr_chunks
+
+  l_data <- pl_eval(body,
+                    query = query,
+                    nsol = maxnsols,
+                    timeout = timeout,
+                    mode = "query",
+                    data = l_eval_env)
+
+  if ( !all(c("ENTITY", "COLUMN_HEADER", "CELL") %in% names(l_data)))
+    error("ENTITY, COLUMN_HEADER and CELL shall be in the query variables")
+
+  l_table <- tidyr::pivot_wider(l_data,
+                                id_cols = "ENTITY",
+                                names_from = "COLUMN_HEADER",
+                                values_from = "CELL",
+                                values_fill = "",
+                                values_fn = function(x) {
+                                  if (length(x) == 0)
+                                    out <- ""
+                                  else if (length(x) > 1)
+                                    out <- paste(x, collapse = " | ")
+                                  else
+                                    out <- x[[1]]
+                                  out
+                                })
+
+}
