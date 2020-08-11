@@ -177,7 +177,7 @@ pl_eval <- function(body, query="true",
     if (mode == "query") {
 
       l_cmd_ret <- fCleanStdOut(l_cmd_ret)
-      l_r <- gregexpr("\\<_\\>|[A-Z][a-zA-Z0-9_]*",query)
+      l_r <- gregexpr("\\<_\\>|\\<[A-Z][a-zA-Z0-9_]*\\>",query)
       l_variables <- unlist(regmatches(query,  l_r))
       for (v in which(l_variables == '_') ) { l_variables[[v]] <- paste0("HIDDEN34342_", v) }
       l_variables <- unique(l_variables)
