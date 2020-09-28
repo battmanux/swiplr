@@ -1,7 +1,7 @@
 # swiplr
 Use SWI-Prolog from R
 
-Full documentation at [PDF](inst/Usage.pdf) or [HTML](inst/Usage.html)
+Full documentation at [PDF](inst/Usage.pdf) or [HTML](https://htmlpreview.github.io/?https://github.com/battmanux/swiplr/blob/master/inst/Usage.html)
 
 # What for
 
