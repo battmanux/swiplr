@@ -60,8 +60,9 @@ fCleanStdOut <- function(txtList) {
 pl_eval <- function(body, query="true",
                     nsol=10 , verbose=F,
                     timeout=10, mode = "query",
+                    more_options = "",
                     data, ...) {
-  opt <- options("swipl_bin_folder")
+  opt <- options("swipl_binary")
 
   l_mode_map <- c(
     query='main_print_tl',
@@ -73,12 +74,12 @@ pl_eval <- function(body, query="true",
   if (! mode %in% names(l_mode_map) )
     l_mode_map[[mode]] <- mode
 
-  if (is.null(opt$swipl_bin_folder)) {
-    opt$swipl_bin_folder <- ""
+  if (is.null(opt$swipl_binary)) {
+    opt$swipl_binary <- "swipl"
     options(opt)
   }
 
-  l_swipl_bin_path <- opt$swipl_bin_folder
+  l_swipl_bin_path <- opt$swipl_binary
 
   if (missing(data))
     data <- list(...)
@@ -103,8 +104,8 @@ pl_eval <- function(body, query="true",
            statistics(walltime, [_,ExecutionTime]),
            nl,write('# Execution took: '), write(ExecutionTime), write(' ms.'), nl.\n\n",
     "main_with_profile :-
-           profile(main_query(_), [top(20), cummulative(true)]),
-           show_profile([]).\n\n",
+           profile(main_query(ListRes), [top(20), cummulative(true)]),
+           maplist(writeqln, ListRes).\n\n",
     "main_print_tl :-
            call_with_time_limit(", timeout,", main_print).\n\n",
     "main_with_duration_tl :-
@@ -115,7 +116,7 @@ pl_eval <- function(body, query="true",
     collapse = "", sep = "\n"
   )
 
-  l_src <- whisker::whisker.render(l_src, data = data)
+  l_src <- whisker::whisker.render(l_src, data = data, strict = FALSE)
   cat(l_src, file = l_file)
 
   if ( verbose == TRUE )
@@ -125,9 +126,15 @@ pl_eval <- function(body, query="true",
         "---------------\n",
         l_src,"\n")
 
-  l_cmd <- paste(l_swipl_bin_path, "swipl  --nopce -q ",
+  if ( .Platform$OS.type == "unix" )
+    l_display_var = "DISPLAY= "
+  else
+    l_display_var = ""
+
+  # Unset DISPLAY variable to make sure no
+  l_cmd <- paste(l_display_var, l_swipl_bin_path, "  --nopce -q ",
                   " -f ", l_file,
-                  " -g ", l_mode_map[[mode]]," -t halt 2>&1 " ,
+                  " -g ", l_mode_map[[mode]], more_options ," -t halt 2>&1 " ,
                    sep = "" )
 
   suppressWarnings(
@@ -174,7 +181,7 @@ pl_eval <- function(body, query="true",
         gsub("^# Execution took: (\\d+) ms.$", "\\1", l_value))
     }
 
-    if (mode == "query") {
+    if (mode == "query" || mode == "profile") {
 
       l_cmd_ret <- fCleanStdOut(l_cmd_ret)
       l_r <- gregexpr("\\<_\\>|\\<[A-Z][a-zA-Z0-9_]*\\>",query)
@@ -315,6 +322,9 @@ knit_prolog_engine <- function (options) {
   if (is.null(options$mode) )
     options$mode <- "query"
 
+  if (is.null(options$more_options) )
+    options$more_options <- ""
+
   # Push multiple lines on the same line
   l_code <- options$code
   for (l in which(endsWith(l_code, "\\")) ) {
@@ -331,13 +341,14 @@ knit_prolog_engine <- function (options) {
 		       value = T, invert = T),
 		  collapse = "\n")
 
-  l_eval_env <- new.env(parent = .GlobalEnv)
-  l_eval_env$swiplr_chunks <- .GlobalEnv$.swiplr_chunks
+  l_eval_env <- as.list(.GlobalEnv)
+  l_eval_env$.swiplr_chunks <- .GlobalEnv$.swiplr_chunks
 
   if (options$eval) {
     out_list <- lapply(l_query, function(x) pl_eval(l_body, query = x, nsol = options$maxnsols,
                                                     timeout = options$timeout, mode = options$mode,
                                                     verbose = (!is.null(options$verbose) && options$verbose ),
+                                                    more_options = options$more_options,
                                                     data = l_eval_env))
   }  else
     out_list <- lapply(l_query, function(x) "")
@@ -392,7 +403,7 @@ knit_prolog_engine <- function (options) {
   if ( !grepl(pattern = "^unnamed-chunk-.*", x = options$label) ) {
 
     # save current chunk content
-    l_computed_body <- whisker::whisker.render(l_body, data = l_eval_env)
+    l_computed_body <- whisker::whisker.render(l_body, data = l_eval_env, strict = FALSE)
     .GlobalEnv$.swiplr_chunks[[options$label]] <- paste(l_computed_body, sep = "\n")
 
   }
@@ -430,7 +441,7 @@ r_to_pro <- function(data_in) {
 
 #' run a prolog query an plot the result as graph
 #'
-#' @param body prolog chunk. use "{{{swiplr_chunks.<label>}}}" to use a notebook chunk
+#' @param body prolog chunk. use " {{{ .swiplr_chunks.<label> }}}" to use a notebook chunk
 #' @param query query to convert to graph. Must contain FROM, TO, and LINK
 #' @param timeout maximum query duration
 #' @param maxnsols maximum number of solutions (default 100)
@@ -441,8 +452,8 @@ r_to_pro <- function(data_in) {
 #' @export
 plot_query <- function(body, query, maxnsols=100, timeout = 10 ) {
 
-  l_eval_env <- new.env(parent = .GlobalEnv)
-  l_eval_env$swiplr_chunks <- .GlobalEnv$.swiplr_chunks
+  l_eval_env <- as.list(.GlobalEnv)
+  l_eval_env$.swiplr_chunks <- .GlobalEnv$.swiplr_chunks
 
   l_data <- pl_eval(body,
                     query = query,
@@ -451,8 +462,8 @@ plot_query <- function(body, query, maxnsols=100, timeout = 10 ) {
                     mode = "query",
                     data = l_eval_env)
 
-  if ( !all(c("FROM", "TO") %in% names(l_data)))
-    error("FROM and TO shall be in the query variables")
+  if ( !all(c("FROM", "TO", "LINK") %in% names(l_data)))
+    error("FROM, TO and LINK shall be in the query variables")
 
   l_node_from <- unique(l_data$FROM)
   l_node_to <- unique(l_data$TO)
@@ -460,11 +471,11 @@ plot_query <- function(body, query, maxnsols=100, timeout = 10 ) {
 
   l_nodes <- data.frame( id = l_node_names,
                          label = l_node_names,
-                         group = as.character(l_node_names %in% l_data$FROM))
+                         group = as.character(l_node_names %in% l_data$FROM), stringsAsFactors = F)
 
   l_links <- data.frame( from = l_data$FROM,
                          to = l_data$TO,
-                         label = l_data$LINK)
+                         label = l_data$LINK, stringsAsFactors = F)
   l_links$arrows <- "to"
 
 
@@ -476,7 +487,7 @@ plot_query <- function(body, query, maxnsols=100, timeout = 10 ) {
 
 #' run a prolog query an plot the result as a wide table
 #'
-#' @param body prolog chunk. use "{{{swiplr_chunks.<label>}}}" to use a notebook chunk
+#' @param body prolog chunk. use "{{{ .swiplr_chunks$<label> }}}" to use a notebook chunk
 #' @param query query to convert to graph. Must contain FROM, TO, and LINK
 #' @param timeout maximum query duration
 #' @param maxnsols maximum number of solutions (default 100)
@@ -489,8 +500,8 @@ plot_query <- function(body, query, maxnsols=100, timeout = 10 ) {
 #'
 table_query <- function(body, query, maxnsols=100, timeout = 10 ) {
 
-  l_eval_env <- new.env(parent = .GlobalEnv)
-  l_eval_env$swiplr_chunks <- .GlobalEnv$.swiplr_chunks
+  l_eval_env <- as.list(.GlobalEnv)
+  l_eval_env$.swiplr_chunks <- .GlobalEnv$.swiplr_chunks
 
   l_data <- pl_eval(body,
                     query = query,
@@ -506,15 +517,7 @@ table_query <- function(body, query, maxnsols=100, timeout = 10 ) {
                                 id_cols = "ENTITY",
                                 names_from = "COLUMN_HEADER",
                                 values_from = "CELL",
-                                values_fill = "",
-                                values_fn = function(x) {
-                                  if (length(x) == 0)
-                                    out <- ""
-                                  else if (length(x) > 1)
-                                    out <- paste(x, collapse = " | ")
-                                  else
-                                    out <- x[[1]]
-                                  out
-                                })
+                                values_fill = list(CELL=""))
 
+  l_table
 }
