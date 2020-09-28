@@ -1,17 +1,20 @@
 ---
 title: "SWI-Prolog markdown"
 author: "Emmanuel BATT"
-date: "11/06/2019"
+date: "28/09/2020"
+always_allow_html: true
 output:
+  pdf_document: 
+    toc: yes
   html_document: default
-  pdf_document: default
+  word_document: default
 ---
 
 
 # Introduction
 
 *swiplr* is an R wrapper for Prolog. I use it only with SWI-Prolog but
-you may succeed to use it with other versions of Prolog (not testes).
+you may succeed to use it with other versions of Prolog (not tested).
 
 # Install
 
@@ -23,7 +26,7 @@ For other operating systems go to [swi-prolog download page](https://www.swi-pro
 sudo apt-get install -qq -y swi-prolog
 ```
 
-Then you can install the package from github usung devtools. If you miss devtools
+Then you can install the package from github using devtools. If you do not have devtools,
 install it first with `install.packages("devtools")`
 
 ```{r}
@@ -39,6 +42,8 @@ library(swiplr)
 ```
 
 In case you would like to use another Prolog binary, you can force to binary path with `options(swipl_binary = "prolog")`. *swipl_binary* can also be an absolute path to your own version of swipl. For instance */usr/local/bin/swipl*
+
+\pagebreak
 
 # Simple usage
 
@@ -58,7 +63,7 @@ foo(bar).
 ?- foo(foo).
 ```
 
-## With data.frame as result
+## Return data.frame
 
 ```{prolog}
 male(joe).
@@ -79,9 +84,9 @@ sibling(X1, X2, P)  :- parent(X1, P), parent(X2, P), dif(X1,X2).
 ```
 
 
-## hide columns
+## Hiding columns
 
-You can add _ at the end of a variable to remove it from results table.
+You can add _ at the end of a variable to remove it from result table.
 
 ```{prolog}
 
@@ -102,7 +107,21 @@ sibling(X1, X2, P)  :- parent(X1, P), parent(X2, P), dif(X1,X2).
 ?- sibling(SIBLING_1, SIBLING_2, PARENT_), female(PARENT_)
 ```
 
+By default we return anly the 10 first rows. Use `maxnsols` to increase the table side.
+
+__we set the maxnsols=20 variable to this chunk header__
+```{prolog, maxnsols=20}
+
+foo(X) :- member(X, [1,2,3,4,5,6,7,8,9,10,11,12]).
+
+?- foo(Number)
+```
+
+
+\pagebreak
 # Exchange data with R
+
+## Lets define a few variables
 
 ```{r}
 
@@ -120,14 +139,16 @@ some_table <- r_to_pro(iris[sample(1:150, 4),])
 
 ```
 
+## We can use them from prolog
+
 One can use  `whisker::whisker.render` syntax. By default whisker applies html
 escaping on the generated text. To prevent this use {{{variable}}} (triple) in stead of {{variable}}.
 
-
-```{prolog}
+__we give the name `simple_foo_chunk` to this chunk so that we can use its output in R__
+```{prolog simple_foo_chunk}
 
 % Inject the content of R some_name variable
-foo({{ some_name }}).
+foo({{{ some_name }}}).
 
 
 ?- foo(BAR).
@@ -135,7 +156,7 @@ foo({{ some_name }}).
 
 We can also inject more complex data structures
 
-```{prolog, verbose=T}
+```{prolog}
 
 foo('{{{ named_list$var1$field1 }}}').
 
@@ -154,8 +175,9 @@ foo('{{{ named_list$var1$field1 }}}').
 ?- some_table(Species, Sepal_Length, Sepal_Width)
 ```
 
+## We can use prolog results from R
 
-And then get back values in R
+And then get back the last chunk values in R with the `prolog_output` variable.
 
 ```{r}
 
@@ -163,10 +185,39 @@ prolog_output$result_1
 
 ```
 
-# Load previouse chunks
+If we give a label or a name to a Prolog chunk, its output will be saved into 
+an R variable with the same same:
 
-This `database` chunk describe some predicates
+```{r}
 
+str(simple_foo_chunk)
+
+```
+## Use prolog ouside of Rmd files
+
+You may want to directly call prolog from an R script (maybe shiny). 
+You can achieve this by calling `pl_eval`:
+
+__This is an R chunk__
+```{r}
+
+my_value <- "open_bar"
+
+my_result <- pl_eval(
+  data = .GlobalEnv,
+  body = "foo(bar1). foo(bar2). foo({{ my_value }}).", 
+  query = "foo(Foo)")
+
+print(my_result)
+```
+
+
+
+\pagebreak
+# Build a database over several chunks
+
+This `database` describe some predicates:
+__we set the label=database variable to this chunk header__
 ```{prolog label=database}
 
 foo(bar_from_database_chunk_1).
@@ -175,24 +226,25 @@ foo(bar_from_database_chunk_2).
 ?- foo(BAR)
 ```
 
-This chunk load the database chunk and query. Note that with RStudio you can use
-<TAB> for chunk names completion.
+This chunk load the database chunk, add facts and query it. Note that with RStudio you can use
+chunk names completion that appears after typing the $ character.
 
 Query at the end of the chunk is optional. You can define a chunk of data without
 it.
 
+__we set the label=extended variable to this chunk header__
 ```{prolog, extended}
 
 {{{ .swiplr_chunks$database }}}
 
 foo(bar_from_extended_chunk_3).
 
-?- foo(BAR)
 ```
 
 Chunks with eval=FALSE will be added to the chunk list but results will not be 
 displayed.
 
+__we set the label=extended_bis variable to this chunk header__
 ```{prolog, extended_bis, eval=FALSE}
 
 {{{ .swiplr_chunks$extended }}}
@@ -202,6 +254,7 @@ foo(bar_from_extended_chunk_4).
 ?- foo(X).
 ```
 
+Lets query the entire database. Note that you can rerun intermediate chunks without rerunning the entire document. 
 
 ```{prolog}
 
@@ -212,10 +265,17 @@ foo(bar_from_unnamed_chunk_5).
 ?- foo(X).
 ```
 
-You can rerun intermediate chunks without rerunning the entire document. 
+However you must evaluate a prolog named database chunk after change so that 
+*swiplr* knows its content.
 
 
-# Display results
+\pagebreak
+# Advanced result formating
+
+It is often needed to look at results as sparse table or connected graph.
+We have here two experimental ways of doing it.
+
+## Lets consider a simple database
 
 
 ```{prolog sparse_table}
@@ -232,6 +292,16 @@ cell(X,mamal,yes) :- member(X,[cat,dog,chicken]).
 
 ## As a sparse table
 
+Whenever you would like to see results with one entity per line and attributes in 
+columns, you can build a query with the three following keywords: ENTITY, COLUMN_HEADER, CELL.
+
+Each result produces one cell in the table:
+- ENTITY:        will be the row label
+- COLUMN_HEADER: will be the column header
+- CELL:          will be the content of the cell.
+
+Make sure you have `tidyr` package installed. 
+
 ```{r}
 
 table_query(
@@ -244,6 +314,14 @@ table_query(
 
 ## As a chart
 
+You way also need to represent results as interconections in a graph.
+- FROM:   name of the source node
+- TO:     name of the target node
+- LINK:   name of the link
+
+Each result will be displayed as an oriented link in the graph 
+
+Make sure you have `visNetwork` package installed. 
 
 ```{r}
 
@@ -254,6 +332,11 @@ plot_query(
 
 ```
 
+This produces an interactive HTML chart like this:
+
+![graph](plot_query.png)
+
+\pagebreak
 # Degraded modes
 
 ## Infinite loop
@@ -309,6 +392,7 @@ ERROR:         var/1
 
 
 
+\pagebreak
 # Advances features
 
 ## Check query duration

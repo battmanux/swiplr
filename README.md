@@ -1,6 +1,8 @@
 # swiplr
 Use SWI-Prolog from R
 
+Full documentation at [PDF](inst/Usage.pdf) or [HTML](inst/Usage.html)
+
 # What for
 
 To call prolog from Rmd files and generate prolog based reports from RStudio.
@@ -9,8 +11,9 @@ To call prolog from Rmd files and generate prolog based reports from RStudio.
 
 First of all, install SWI-Prolog. Make sure swipl binary is in your path.
 
-> I tested it on both windows and linux. 
-> 64bit Windows seemed to miss swipl.exe, but 32bit works fine.
+> I tested it once on windows. I manly use it from Linux. 
+> 64bit Windows seemed to miss swipl.exe, but 32bit worked fine. In case windows
+version looks broken and you need it, let me know!
 
 Then you can install the R package:
 
@@ -55,9 +58,3 @@ str(foo_list)
  $ FOO: chr  "bar" "other"
 ```
 
-More details in [inst/tests.Rmd](inst/tests.Rmd)
-
-Clean R documentation is not there yet, but main function is `pl_eval`
-```r
-foo <- pl_eval(body = "foo(bar).", query = "foo(FOO)")
-```
