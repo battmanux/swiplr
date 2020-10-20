@@ -332,6 +332,17 @@ knit_prolog_engine <- function (options) {
     l_code[[l]] <- ""
     }
 
+  # push multiple lines query into single line
+  for (i in seq_len(length(l_code)-1) ) {
+    if ( startsWith(l_code[[i]], "?-") &&
+         ! grepl(pattern = "\\.\\s*$",x =  l_code[[i]]) &&
+         ! startsWith(l_code[[i+1]], "?-")
+    ) {
+      l_code[[i+1]] <- paste0(gsub("[ \t]*\\\\$", "", l_code[[i]]), " ", gsub("^[ \t]*","",l_code[[i+1]]))
+      l_code[[i]] <- ""
+    }
+  }
+
   l_query <- gsub("^ *\\?- *(.*[^\\. ])[\\. ]*$", "\\1",
 		  grep(pattern = "^ *\\?- *(.*)$",
 		       l_code, value = T))
