@@ -332,11 +332,33 @@ knit_prolog_engine <- function (options) {
     l_code[[l]] <- ""
     }
 
+  # remove comments
+  # This does not work if you mix " and '
+  for (i in seq_len(length(l_code)) ) {
+
+    l_split <- unlist(strsplit(l_code[[i]], split = "%"))
+
+    l_p1 <- 0
+    l_p2 <- 0
+    for ( l_piece in seq_along(l_split) ) {
+      l_p1 <- l_p1 + stringr::str_count(l_split[[l_piece]], '"')
+      l_p2 <- l_p2 + stringr::str_count(l_split[[l_piece]], "'")
+
+      if ( l_p1 %% 2 == 0 && l_p2 %% 2 == 0 ) {
+        l_code[[i]] <- paste0(l_split[1:l_piece], collapse = "%")
+        break
+      }
+
+    }
+
+  }
+
   # push multiple lines query into single line
   for (i in seq_len(length(l_code)-1) ) {
     if ( startsWith(l_code[[i]], "?-") &&
          ! grepl(pattern = "\\.\\s*$",x =  l_code[[i]]) &&
-         ! startsWith(l_code[[i+1]], "?-")
+         ! startsWith(l_code[[i+1]], "?-") &&
+         ! grepl(pattern = "^[\t ]*$", l_code[[i+1]])
     ) {
       l_code[[i+1]] <- paste0(gsub("[ \t]*\\\\$", "", l_code[[i]]), " ", gsub("^[ \t]*","",l_code[[i+1]]))
       l_code[[i]] <- ""
