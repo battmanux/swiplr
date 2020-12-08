@@ -1,13 +1,13 @@
 Package: swiplr
 Type: Package
 Title: Interface SWI-Prolog from R
-Version: 0.3.4
+Version: 0.4.0
 Author: Emmanuel BATT [aut, cre]
 Maintainer: Emmanuel BATT <emmanuel.batt.cran@battfamily.fr>
 Description: Make prolog interface from R easier
     - use prolog from Rmd documents.
     - inject R variales into prolog applications
-    - retrive prolog results as R data.frame
+    - retrive prolog results as R data.frame (allows list in cells)
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
@@ -15,6 +15,7 @@ RoxygenNote: 6.1.1
 URL: https://github.com/battmanux/swiplr
 Imports:
     dplyr, 
+    stringr,
     visNetwork,
     whisker,
     knitr, 

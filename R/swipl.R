@@ -1,3 +1,4 @@
+
 fDecodeStdErr <- function(txtList, l_file) {
   l_content <- readLines(l_file, warn = F)
 
@@ -42,6 +43,89 @@ fCleanStdOut <- function(txtList) {
   txtList[grepl(pattern = "^\\[", txtList)]
 }
 
+
+fParse <- function(txt = "['coeur de boeuf',cuisson,'à point']") {
+  txt <- stringr::str_trim(txt)
+
+  if ( grepl(x = txt, "^\\d+$") == TRUE )
+    return(as.integer(txt))
+
+  if ( grepl(x = txt, "^\\d+\\.\\d+$") == TRUE )
+    return(as.numeric(txt))
+
+  if ( str_length(txt) <= 1 )
+    return(txt)
+
+  if ( str_length(txt) > 1 &&
+       str_sub(txt, 1, 1) == "'" &&
+       str_sub(txt, -1, -1) == "'")
+    return(str_sub(txt, 2, -2))
+
+  if ( str_length(txt) > 1 &&
+       str_sub(txt, 1, 1) == "[" &&
+       str_sub(txt, -1, -1) == "]")
+    return(fParseList(txt))
+
+  return(txt)
+
+}
+
+fParseList <- function(txt) {
+
+  if ( !( str_length(txt) > 1 &&
+       str_sub(txt, 1, 1) == "[" &&
+       str_sub(txt, -1, -1) == "]") ) {
+
+    return(fParse(txt))
+
+  } else {
+
+    txt <- str_sub(txt, 2, -2)
+
+  }
+
+  l <- str_split(txt, ",")[[1]]
+  par_count      <- numeric(length(l))
+  brackers_count <- numeric(length(l))
+  quote_count    <- numeric(length(l))
+
+  out <- list()
+  cur <- list()
+
+  for ( i in seq_along(l) ) {
+    t <- l[[i]]
+
+    if ( i > 1 ) {
+      prev_c <- par_count[i-1]
+      prev_b <- brackers_count[i-1]
+      prev_q <- quote_count[i-1]
+    } else {
+      prev_c <- 0
+      prev_b <- 0
+      prev_q <- 0
+    }
+
+    par_count[[i]]      <- prev_c + str_count(t, "\\(") - str_count(t, "\\)")
+    brackers_count[[i]] <- prev_b + str_count(t, "\\[") - str_count(t, "\\]")
+    quote_count[[i]]    <- prev_q + str_count(t, "'")
+
+    cur[[length(cur)+1]] <- t
+
+    if (
+        ( par_count[[i]]         == 0 &&
+          quote_count[[i]] %% 2  == 0 &&
+          brackers_count[[i]]    == 0 ) ||
+        (
+          i == length(l)
+        )) {
+      out[[length(out)+1]] <- fParse( paste(cur, collapse = "," ) )
+      cur <- list()
+    }
+  }
+
+  return(out)
+
+}
 
 #' pl_eval
 #'
@@ -131,7 +215,7 @@ pl_eval <- function(body, query="true",
   else
     l_display_var = ""
 
-  # Unset DISPLAY variable to make sure no
+  # Unset DISPLAY variable to make sure no X ERROR
   l_cmd <- paste(l_display_var, l_swipl_bin_path, "  --nopce -q ",
                   " -f ", l_file,
                   " -g ", l_mode_map[[mode]], more_options ," -t halt 2>&1 " ,
@@ -184,72 +268,13 @@ pl_eval <- function(body, query="true",
     if (mode == "query" || mode == "profile") {
 
       l_cmd_ret <- fCleanStdOut(l_cmd_ret)
-      l_r <- gregexpr("\\<_\\>|\\<[A-Z][a-zA-Z0-9_]*\\>",query)
+
+      l_r <- gregexpr("\\b(_|[A-Z][a-zA-Z0-9_]*)\\b", query)
       l_variables <- unlist(regmatches(query,  l_r))
-      for (v in which(l_variables == '_') ) { l_variables[[v]] <- paste0("HIDDEN34342_", v) }
       l_variables <- unique(l_variables)
 
       if (length(l_cmd_ret) > 0) {
-        safe_eval_env <- new.env(parent = emptyenv())
-        safe_eval_env$`+` <- `+`
-        safe_eval_env$`-` <- `-`
-        safe_eval_env$`/` <- `/`
-        safe_eval_env$`*` <- `*`
-        safe_eval_env$`c` <- `c`
-
-        l_r_data <- lapply(l_cmd_ret, function(x) {
-          x <- gsub("]-1", "]", x)
-          if (x == "[]") {
-            l_ret <- TRUE
-          } else if ( startsWith(x, "[") ) {
-            x1 <- gsub("(\\<_G?[0-9]+)", "`\\1`", x)
-            x2 <- gsub("\\[", "c(", x1)
-            x3 <- gsub("\\]", ")", x2)
-            #x4 <- gsub("([\\(\\), ]*)([^\\(\\), ][^\\(\\),]+)([\\), ])", "\\1'\\2'\\3", x3)
-            #x5 <- gsub(",([a-zA-Z]),", ",'\\1',", x4)
-
-            l_err <- try({
-              l_l <- parse(text = x3)
-              l_ret <- unlist(lapply(l_l[[1]][2:length(l_l[[1]])],
-                                     function(x) {
-
-                                       if ( is.numeric(x) ) {
-                                         ret <- as.numeric(x)
-                                       } else if ( is.character(x) ) {
-                                         ret <- x
-                                       } else if ( is.symbol(x) ) {
-                                         ret <- as.character(x)
-                                       } else if ( is.language(x) ) {
-                                         ret <- paste(capture.output(print(x)), collapse = "")
-                                         try(silent = T, {
-                                            ret <- paste0(unlist(eval(x, envir = safe_eval_env)), collapse = ",")
-                                          })
-                                       } else {
-                                         ret <- paste(capture.output(print(x)), collapse = "")
-                                       }
-
-                                       ret
-                                     }
-              ) )
-            }, silent = T)
-
-            if (inherits(l_err, "try-error")) {
-              l_ret <- character(length(l_variables))
-              l_ret[[1]] <- substr(x3, 3, nchar(x3) - 1)
-            }
-
-          } else {
-            l_ret <- character(length(l_variables))
-            l_ret[[1]] <- paste0("#msg: ", x)
-          }
-
-          if ( length(l_ret) == 0 )
-            l_ret <- FALSE
-
-          return(l_ret)
-
-        }  )
-
+        l_r_data <- lapply(l_cmd_ret, fParse )
       } else {
         l_r_data <- list()
       }
@@ -259,7 +284,7 @@ pl_eval <- function(body, query="true",
       }
 
       l_sizes <- unlist(lapply(l_r_data, length))
-      # print(l_sizes)
+
       if ( min(l_sizes) == max(l_sizes) ) {
 
         if ( length(l_variables) == 0 ) {
@@ -268,18 +293,25 @@ pl_eval <- function(body, query="true",
 
         } else {
 
-          l_table <- lapply(seq_along(l_variables), function(i)  {
-            sapply(l_r_data, function(x) unlist(x[[i]], use.names = T))
-          })
+          l_table <- do.call(cbind,
+            lapply(
+              seq_along(l_variables),
+              function(col_id) {
 
-          names(l_table) <- l_variables
+                l_col_data <- lapply(l_r_data, function(x) x[[col_id]])
+                l_ret <- data.frame(col=I(l_col_data))
+                names(l_ret) <- l_variables[[col_id]]
 
-          l_r_data <-  as.data.frame(l_table, stringsAsFactors = F)
+                return(l_ret)
 
-          l_silent_vars <-
-            grepl("._$",           l_variables) |
-            grepl("^HIDDEN34342_", l_variables)
+              } )
+            )
 
+          # l_r_data <-  as.data.frame(l_table, stringsAsFactors = F)
+          # names(l_r_data) <- l_variables
+          l_r_data <- l_table
+
+          l_silent_vars <- grepl("_$", l_variables)
           l_r_data <- l_r_data[which(!l_silent_vars)]
 
         }
