@@ -43,27 +43,37 @@ fCleanStdOut <- function(txtList) {
   txtList[grepl(pattern = "^\\[", txtList)]
 }
 
+f_str_sub <- function(txt, start, stop) {
+  if (stop < 0)
+    stop <- nchar(txt) + stop + 1
+  if (start < 0)
+    start <- nchar(txt) + start + 1
+  substring(txt, start, stop)
+}
+
+f_str_count <- function(txt, match) {
+  length(strsplit(paste0(txt, "\r"), match, fixed = TRUE)[[1]])-1
+}
 
 fParse <- function(txt = "['coeur de boeuf',cuisson,'à point']") {
-  txt <- stringr::str_trim(txt)
+  txt <- gsub(pattern = "(^ +)|( +$)", replacement = "", txt)
 
-  if ( grepl(x = txt, "^\\d+$") == TRUE )
-    return(as.integer(txt))
-
-  if ( grepl(x = txt, "^\\d+\\.\\d+$") == TRUE )
+  if ( grepl(x = txt, "^\\d+(?:\\.\\d+)$") == TRUE )
     return(as.numeric(txt))
 
-  if ( str_length(txt) <= 1 )
+  l_nchar <- nchar(txt)
+
+  if ( l_nchar <= 1 )
     return(txt)
 
-  if ( str_length(txt) > 1 &&
-       str_sub(txt, 1, 1) == "'" &&
-       str_sub(txt, -1, -1) == "'")
-    return(str_sub(txt, 2, -2))
+  if ( l_nchar > 1 &&
+       f_str_sub(txt, 1, 1) == "'" &&
+       f_str_sub(txt, -1, -1) == "'")
+    return(f_str_sub(txt, 2, -2))
 
-  if ( str_length(txt) > 1 &&
-       str_sub(txt, 1, 1) == "[" &&
-       str_sub(txt, -1, -1) == "]")
+  if ( l_nchar > 1 &&
+       f_str_sub(txt, 1, 1) == "[" &&
+       f_str_sub(txt, -1, -1) == "]")
     return(fParseList(txt))
 
   return(txt)
@@ -72,19 +82,19 @@ fParse <- function(txt = "['coeur de boeuf',cuisson,'à point']") {
 
 fParseList <- function(txt) {
 
-  if ( !( str_length(txt) > 1 &&
-       str_sub(txt, 1, 1) == "[" &&
-       str_sub(txt, -1, -1) == "]") ) {
+  if ( !( nchar(txt) > 1 &&
+          f_str_sub(txt, 1, 1) == "[" &&
+          f_str_sub(txt, -1, -1) == "]") ) {
 
     return(fParse(txt))
 
   } else {
 
-    txt <- str_sub(txt, 2, -2)
+    txt <- f_str_sub(txt, 2, -2)
 
   }
 
-  l <- str_split(txt, ",")[[1]]
+  l <- strsplit(txt, ",")[[1]]
   par_count      <- numeric(length(l))
   brackers_count <- numeric(length(l))
   quote_count    <- numeric(length(l))
@@ -105,9 +115,9 @@ fParseList <- function(txt) {
       prev_q <- 0
     }
 
-    par_count[[i]]      <- prev_c + str_count(t, "\\(") - str_count(t, "\\)")
-    brackers_count[[i]] <- prev_b + str_count(t, "\\[") - str_count(t, "\\]")
-    quote_count[[i]]    <- prev_q + str_count(t, "'")
+    par_count[[i]]      <- prev_c + f_str_count(t, "(") - f_str_count(t, ")")
+    brackers_count[[i]] <- prev_b + f_str_count(t, "[") - f_str_count(t, "]")
+    quote_count[[i]]    <- prev_q + f_str_count(t, "'")
 
     cur[[length(cur)+1]] <- t
 
