@@ -1,7 +1,7 @@
 Package: swiplr
 Type: Package
 Title: Interface SWI-Prolog from R
-Version: 0.4.1
+Version: 0.4.2
 Author: Emmanuel BATT [aut, cre]
 Maintainer: Emmanuel BATT <emmanuel.batt.cran@battfamily.fr>
 Description: Make prolog interface from R easier

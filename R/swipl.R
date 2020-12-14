@@ -283,58 +283,60 @@ pl_eval <- function(body, query="true",
       l_variables <- unlist(regmatches(query,  l_r))
       l_variables <- unique(l_variables)
 
-      if (length(l_cmd_ret) > 0) {
-        l_r_data <- lapply(l_cmd_ret, fParse )
+      if (length(l_variables) == 0 ) {
+        if (length(l_cmd_ret) == 0)
+          return(FALSE)
+        else
+          return(TRUE)
       } else {
-        l_r_data <- list()
-      }
 
-      if ( length(l_r_data) == 0) {
-        l_r_data <- list(lapply(l_variables, function(x) c(NA) ) )
-      }
-
-      l_sizes <- unlist(lapply(l_r_data, length))
-
-      if ( min(l_sizes) == max(l_sizes) ) {
-
-        if ( length(l_variables) == 0 ) {
-
-          l_r_data <-  l_r_data[[1]]
-
+        # We have variables, so show a table
+        if (length(l_cmd_ret) > 0) {
+          l_r_data <- lapply(l_cmd_ret, fParse )
         } else {
-
-          l_table <- do.call(cbind,
-            lapply(
-              seq_along(l_variables),
-              function(col_id) {
-
-                l_col_data <- lapply(l_r_data, function(x) x[[col_id]])
-                l_ret <- data.frame(col=I(l_col_data))
-                names(l_ret) <- l_variables[[col_id]]
-
-                return(l_ret)
-
-              } )
-            )
-
-          # l_r_data <-  as.data.frame(l_table, stringsAsFactors = F)
-          # names(l_r_data) <- l_variables
-          l_r_data <- l_table
-
-          l_silent_vars <- grepl("_$", l_variables)
-          l_r_data <- l_r_data[which(!l_silent_vars)]
-
+          l_r_data <- list(lapply(l_variables, function(x) c(NA) ) )
         }
 
-      } else {
-        l_r_data <- paste("res=",l_r_data)
+        l_sizes <- unlist(lapply(l_r_data, length))
+
+        if ( min(l_sizes) == max(l_sizes) ) {
+
+          if ( l_sizes == 0 ) {
+
+            l_r_data <-  TRUE
+
+          } else {
+
+            l_table <- do.call(cbind,
+                               lapply(
+                                 seq_along(l_variables),
+                                 function(col_id) {
+
+                                   l_col_data <- lapply(l_r_data, function(x) x[[col_id]])
+                                   l_ret <- data.frame(col=I(l_col_data))
+                                   names(l_ret) <- l_variables[[col_id]]
+
+                                   return(l_ret)
+
+                                 } )
+            )
+
+            # l_r_data <-  as.data.frame(l_table, stringsAsFactors = F)
+            # names(l_r_data) <- l_variables
+            l_r_data <- l_table
+
+            l_silent_vars <- grepl("_$", l_variables)
+            l_r_data <- l_r_data[which(!l_silent_vars)]
+
+          }
+
+        } else {
+          l_r_data <- paste("res=",l_r_data)
+        }
       }
+
     }
   }
-
-  # in case we have no output at all
-  if ( length(l_r_data) == 0 )
-    l_r_data <- list(FALSE)
 
   return(l_r_data)
 }
