@@ -299,36 +299,28 @@ pl_eval <- function(body, query="true",
 
         l_sizes <- unlist(lapply(l_r_data, length))
 
-        if ( min(l_sizes) == max(l_sizes) ) {
+        if ( min(l_sizes) == max(l_sizes) && min(l_sizes) == length(l_variables) ) {
 
-          if ( l_sizes == 0 ) {
+          l_table <- do.call(cbind,
+                             lapply(
+                               seq_along(l_variables),
+                               function(col_id) {
 
-            l_r_data <-  TRUE
+                                 l_col_data <- lapply(l_r_data, function(x) x[[col_id]])
+                                 l_ret <- data.frame(col=I(l_col_data))
+                                 names(l_ret) <- l_variables[[col_id]]
 
-          } else {
+                                 return(l_ret)
 
-            l_table <- do.call(cbind,
-                               lapply(
-                                 seq_along(l_variables),
-                                 function(col_id) {
+                               } )
+          )
 
-                                   l_col_data <- lapply(l_r_data, function(x) x[[col_id]])
-                                   l_ret <- data.frame(col=I(l_col_data))
-                                   names(l_ret) <- l_variables[[col_id]]
+          # l_r_data <-  as.data.frame(l_table, stringsAsFactors = F)
+          # names(l_r_data) <- l_variables
+          l_r_data <- l_table
 
-                                   return(l_ret)
-
-                                 } )
-            )
-
-            # l_r_data <-  as.data.frame(l_table, stringsAsFactors = F)
-            # names(l_r_data) <- l_variables
-            l_r_data <- l_table
-
-            l_silent_vars <- grepl("_$", l_variables)
-            l_r_data <- l_r_data[which(!l_silent_vars)]
-
-          }
+          l_silent_vars <- grepl("_$", l_variables)
+          l_r_data <- l_r_data[which(!l_silent_vars)]
 
         } else {
           l_r_data <- paste("res=",l_r_data)
