@@ -333,6 +333,287 @@ pl_eval <- function(body, query="true",
   return(l_r_data)
 }
 
+#' Title
+#'
+#' @param l_swipl_bin_path
+#' @param l_args
+#'
+#' @return
+#' @export
+#'
+#' @examples
+NewProlog <- function(l_swipl_bin_path="swipl", l_args = c("-q","--nopce")) {
+  processx::process$new(command = l_swipl_bin_path,
+                        args = l_args,
+                        stdin = "|", stdout = "|", stderr = "|")
+
+}
+
+#' Title
+#'
+#' @param l_swipl_bin_path
+#' @param l_args
+#'
+#' @return
+#' @export
+#'
+#' @examples
+Query <- function(cnx, q, timeout=1) {
+  o<- ""
+  last <- ""
+  err <- ""
+  cnx$read_error()
+  cnx$write_input(paste0(q,"\n") )
+  l_end <- proc.time()[["elapsed"]]+timeout
+  l_cmd_ret <- capture.output(
+    while ( err == "" &&  ! endsWith(last, ".") &&  proc.time()[["elapsed"]] < l_end ) {
+      err <- paste0(err, cnx$read_error())
+      o<-cnx$read_output()
+      if (trimws(o) != "") {
+        last <- trimws(o)
+        cat(o)
+      }
+    }
+  )
+  l_ret <- list(out=l_cmd_ret, err=err, q=q )
+  #str(l_ret)
+  return(l_ret)
+}
+
+#' pl_eval_fast
+#'
+#' @param body p1
+#' @param query p1
+#' @param nsol p1
+#' @param verbose v
+#' @param timeout p1
+#' @param data p1
+#' @param cnx persistant connection created with NewProlog
+#' @param mode query, profile, duration (default query)
+#' @param ... p1
+#'
+#' @return p1
+#' @export
+#'
+pl_eval_fast <- function(body, query="true",
+                    nsol=10 , verbose=F,
+                    timeout=10, mode = "query",
+                    more_options = "",
+                    data, cnx, ...) {
+
+  #tic("entire function")
+
+  #tic("Loading files")
+
+  opt <- options("swipl_binary")
+
+  l_mode_map <- c(
+    query='main_print_tl',
+    profile='main_with_profile_tl',
+    duration='main_with_duration_tl'
+  )
+
+  # If unknown mode, try to use it as predicate
+  if (! mode %in% names(l_mode_map) )
+    l_mode_map[[mode]] <- mode
+
+  if (is.null(opt$swipl_binary)) {
+    opt$swipl_binary <- "swipl"
+    options(opt)
+  }
+
+  l_swipl_bin_path <- opt$swipl_binary
+
+  if (missing(data))
+    data <- list(...)
+
+  l_file <- tempfile("filepl", ".", ".pl" )
+  on.exit(unlink(l_file), add = T)
+
+  l_src_base <- paste(
+    ":- use_module(library(apply)).",
+    ":- use_module(library(time)).",
+    ":- use_module(library(lists)).",
+    "\n",
+    "\n",
+"
+writeqln(X) :- writeq(X), nl.
+
+main_query(Query, ListRes, LIMIT) :-
+           term_variables( (Query), ListVars),
+           findnsols(LIMIT,ListVars , (Query), ListRes).
+
+main_print(Query, LIMIT) :-
+           write('=START=\\n'),
+           main_query(Query, ListRes, LIMIT),
+           maplist(writeqln, ListRes),
+           write('=STOP==\\n').
+
+main_with_duration(Query, LIMIT)    :-
+           statistics(walltime, []),
+           main_query(Query, _, LIMIT),
+           statistics(walltime, [_,ExecutionTime]),
+           nl,write('# Execution took: '), write(ExecutionTime), write(' ms.'), nl.
+
+main_with_profile(Query, LIMIT) :-
+           profile(main_query(Query, ListRes, LIMIT), [top(20), cummulative(true)]),
+           maplist(writeqln, ListRes).
+
+main_print_tl(Query, LIMIT, TIMEOUT) :-
+           call_with_time_limit(TIMEOUT, main_print(Query, LIMIT)).
+
+main_with_duration_tl(Query, LIMIT, TIMEOUT) :-
+           call_with_time_limit(TIMEOUT, main_with_duration(Query, LIMIT)).
+
+main_with_profile_tl(Query, LIMIT, TIMEOUT) :-
+           call_with_time_limit(TIMEOUT, main_with_profile(Query, LIMIT)).
+
+main(Query) :- main_print_tl(Query, 10, 10).
+",
+    collapse = "", sep = "\n"
+  )
+
+  l_src <- whisker::whisker.render(body, data = data, strict = FALSE)
+  cat(l_src_base, file = "base.pl")
+
+  cat(l_src, file = l_file)
+
+  if ( verbose == TRUE )
+    cat(sep = "",
+        "---------------\n",
+        "SOURCE FILE:\n",
+        "---------------\n",
+        l_src,"\n")
+
+  if ( .Platform$OS.type == "unix" )
+    l_display_var = "DISPLAY= "
+  else
+    l_display_var = ""
+
+  # Unset DISPLAY variable to make sure no X ERROR
+  l_args <- c("--nopce", "-q")
+
+  if (missing(cnx)) {
+    cnx <- NewProlog()
+    on.exit(cnx$kill(), add = T)
+  }
+
+  l_file <- basename(l_file)
+  Query(cnx, "consult('base').")
+  Query(cnx, paste0("consult('",substr(l_file, 0,nchar(l_file)-3 ) ,"')."))
+
+  #toc()
+  #tic("Query")
+  l_ret <- Query(cnx, paste0("main_print_tl((",query,"), ",nsol,", ",timeout,")."), timeout=timeout)
+  l_cmd_ret <- l_ret$out
+  err <- l_ret$err
+
+  Query(cnx, paste0("unload_file('",substr(l_file, 0,nchar(l_file)-3 ) ,"')."))
+  Query(cnx, "unload_file('base').")
+
+  #toc()
+  #tic("decoding")
+
+  l_cmd_ret <- strsplit(l_cmd_ret, "\n")
+  l_cmd_ret <- l_cmd_ret[l_cmd_ret != ""]
+
+  if ( verbose == TRUE ) {
+    cat(sep = "",
+        "---------------\n",
+        "PROLOG OUTPUT:\n",
+        "---------------\n")
+    cat(paste(l_cmd_ret, collapse = "\n"), "\n")
+    cat(
+      "---------------\n")
+  }
+
+  if ( grepl("^Warning:", err) ) {
+    fDecodeStdErr(err, l_file)
+  }
+
+  if ( grepl("^ERROR:", err) ) {
+    l_r_data <- FALSE
+
+    fDecodeStdErr(l_cmd_ret, l_file)
+
+  } else {
+    l_r_data <- list()
+
+    if (mode == "profile") {
+      warning("Profiling:\n",
+              paste(grep("^[^[]", l_cmd_ret, value = T), collapse = "\n"),
+              call. = F
+      )
+    }
+
+    if (mode == "duration") {
+      l_value <- paste(
+        grep("^# Execution took: \\d+ ms.$", l_cmd_ret, value = T)
+        , collapse = "\n")
+
+      l_r_data <- as.numeric(
+        gsub("^# Execution took: (\\d+) ms.$", "\\1", l_value))
+    }
+
+    if (mode == "query" || mode == "profile") {
+
+      l_cmd_ret <- fCleanStdOut(l_cmd_ret)
+
+      l_r <- gregexpr("\\b(_|[A-Z][a-zA-Z0-9_]*)\\b", query)
+      l_variables <- unlist(regmatches(query,  l_r))
+      l_variables <- unique(l_variables)
+
+      if (length(l_variables) == 0 ) {
+        if (length(l_cmd_ret) == 0)
+          return(FALSE)
+        else
+          return(TRUE)
+      } else {
+
+        # We have variables, so show a table
+        if (length(l_cmd_ret) > 0) {
+          l_r_data <- lapply(l_cmd_ret, fParse )
+        } else {
+          l_r_data <- list(lapply(l_variables, function(x) c(NA) ) )
+        }
+
+        l_sizes <- unlist(lapply(l_r_data, length))
+
+        if ( min(l_sizes) == max(l_sizes) && min(l_sizes) == length(l_variables) ) {
+
+          l_table <- do.call(cbind,
+                             lapply(
+                               seq_along(l_variables),
+                               function(col_id) {
+
+                                 l_col_data <- lapply(l_r_data, function(x) x[[col_id]])
+                                 l_ret <- data.frame(col=I(l_col_data))
+                                 names(l_ret) <- l_variables[[col_id]]
+
+                                 return(l_ret)
+
+                               } )
+          )
+
+          # l_r_data <-  as.data.frame(l_table, stringsAsFactors = F)
+          # names(l_r_data) <- l_variables
+          l_r_data <- l_table
+
+          l_silent_vars <- grepl("_$", l_variables)
+          l_r_data <- l_r_data[which(!l_silent_vars)]
+
+        } else {
+          l_r_data <- paste("res=",l_r_data)
+        }
+      }
+
+    }
+  }
+  #toc()
+  #toc()
+  return(l_r_data)
+}
+
 
 #' knit_prolog_engine
 #'
