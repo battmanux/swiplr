@@ -72,6 +72,11 @@ fParse <- function(txt = "['coeur de boeuf',cuisson,'à point']") {
     return(f_str_sub(txt, 2, -2))
 
   if ( l_nchar > 1 &&
+       f_str_sub(txt, 1, 1) == "\"" &&
+       f_str_sub(txt, -1, -1) == "\"")
+    return(f_str_sub(txt, 2, -2))
+
+  if ( l_nchar > 1 &&
        f_str_sub(txt, 1, 1) == "[" &&
        f_str_sub(txt, -1, -1) == "]")
     return(fParseList(txt))
@@ -98,6 +103,7 @@ fParseList <- function(txt) {
   par_count      <- numeric(length(l))
   brackers_count <- numeric(length(l))
   quote_count    <- numeric(length(l))
+  dquote_count    <- numeric(length(l))
 
   out <- list()
   cur <- list()
@@ -109,21 +115,50 @@ fParseList <- function(txt) {
       prev_c <- par_count[i-1]
       prev_b <- brackers_count[i-1]
       prev_q <- quote_count[i-1]
+      prev_dq <- dquote_count[i-1]
     } else {
       prev_c <- 0
       prev_b <- 0
       prev_q <- 0
+      prev_dq <- 0
     }
 
-    par_count[[i]]      <- prev_c + f_str_count(t, "(") - f_str_count(t, ")")
-    brackers_count[[i]] <- prev_b + f_str_count(t, "[") - f_str_count(t, "]")
-    quote_count[[i]]    <- prev_q + f_str_count(t, "'")
+    l_quote_count <- f_str_count(t, "'")
+    l_dquote_count <- f_str_count(t, "\"")
+
+    quote_count[[i]]    <- prev_q + l_quote_count
+    dquote_count[[i]]    <- prev_dq + l_dquote_count
+
+    t_end   <- t
+    t_start <- t
+    # increase symbol count only outside quotes
+    if ( quote_count[[i]] %% 2  == 0 && l_quote_count > 0 ) {
+      l_end <- stringi::stri_locate_last_fixed(t_end, pattern = "'")[[1]]
+      t_end <- substr(t_end, l_end, nchar(t_end))
+    }
+    if ( i > 1 && ( quote_count[[i-1]] %% 2  == 0 && l_quote_count > 0 ) ) {
+      l_start <- stringi::stri_locate_first_fixed(t_start, pattern = "'")[[1]]
+      t_start <- substr(t_start, 1, l_start)
+    }
+
+    if ( dquote_count[[i]]  %% 2  == 0 && l_dquote_count > 0 ) {
+      l_end <- stringi::stri_locate_last_fixed(t_end, pattern = "\"")[[1]]
+      t_end <- substr(t_end, l_end, nchar(t_end))
+    }
+    if ( i > 1 && ( dquote_count[[i-1]] %% 2  == 0 && l_dquote_count > 0 ) ) {
+      l_start <- stringi::stri_locate_first_fixed(t_start, pattern = "\"")[[1]]
+      t_start <- substr(t_start, 1, l_start)
+    }
+
+    par_count[[i]]      <- prev_c + f_str_count(t_start, "(") - f_str_count(t_end, ")")
+    brackers_count[[i]] <- prev_b + f_str_count(t_start, "[") - f_str_count(t_end, "]")
 
     cur[[length(cur)+1]] <- t
 
     if (
         ( par_count[[i]]         == 0 &&
           quote_count[[i]] %% 2  == 0 &&
+          dquote_count[[i]] %% 2  == 0 &&
           brackers_count[[i]]    == 0 ) ||
         (
           i == length(l)
