@@ -129,25 +129,49 @@ fParseList <- function(txt) {
     quote_count[[i]]    <- prev_q + l_quote_count
     dquote_count[[i]]    <- prev_dq + l_dquote_count
 
-    t_end   <- t
-    t_start <- t
     # increase symbol count only outside quotes
-    if ( quote_count[[i]] %% 2  == 0 && l_quote_count > 0 ) {
-      l_end <- stringi::stri_locate_last_fixed(t_end, pattern = "'")[[1]]
-      t_end <- substr(t_end, l_end, nchar(t_end))
-    }
-    if ( i > 1 && ( quote_count[[i-1]] %% 2  == 0 && l_quote_count > 0 ) ) {
-      l_start <- stringi::stri_locate_first_fixed(t_start, pattern = "'")[[1]]
-      t_start <- substr(t_start, 1, l_start)
-    }
+    if ( l_quote_count == 0 && l_dquote_count == 0) {
 
-    if ( dquote_count[[i]]  %% 2  == 0 && l_dquote_count > 0 ) {
-      l_end <- stringi::stri_locate_last_fixed(t_end, pattern = "\"")[[1]]
-      t_end <- substr(t_end, l_end, nchar(t_end))
-    }
-    if ( i > 1 && ( dquote_count[[i-1]] %% 2  == 0 && l_dquote_count > 0 ) ) {
-      l_start <- stringi::stri_locate_first_fixed(t_start, pattern = "\"")[[1]]
-      t_start <- substr(t_start, 1, l_start)
+      if ( quote_count[[i]] %% 2 == 0 &&
+           dquote_count[[i]] %% 2 == 0 ) {
+        t_end   <- t
+        t_start <- t
+      } else {
+        t_end   <- ''
+        t_start <- ''
+      }
+    } else {
+
+      l_start1 <- 1
+      l_end1 <- nchar(t)
+
+      if ( l_quote_count > 0 ) {
+        if ( quote_count[[i]] %% 2  == 0 ) {
+          l_end1 <- stringi::stri_locate_last_fixed(t, pattern = "'")[[1]]
+        }
+
+        if ( i > 1 && ( quote_count[[i-1]] %% 2  == 0 ) ) {
+          l_start1 <- stringi::stri_locate_first_fixed(t, pattern = "'")[[1]]
+        }
+
+      }
+
+      l_start2 <- 1
+      l_end2 <- nchar(t)
+
+      if ( l_dquote_count > 0 ) {
+
+        if ( dquote_count[[i]]  %% 2  == 0  ) {
+          l_end2 <- stringi::stri_locate_last_fixed(t, pattern = "\"")[[1]]
+        }
+
+        if ( i > 1 && ( dquote_count[[i-1]] %% 2  == 0 ) ) {
+          l_start2 <- stringi::stri_locate_first_fixed(t, pattern = "\"")[[1]]
+        }
+      }
+
+      t_start <- substr(t, 1, max(l_start1, l_start2))
+      t_end <- substr(t, max(l_end1, l_end2), nchar(t))
     }
 
     par_count[[i]]      <- prev_c + f_str_count(t_start, "(") - f_str_count(t_end, ")")
