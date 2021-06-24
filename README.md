@@ -58,3 +58,20 @@ str(foo_list)
  $ FOO: chr  "bar" "other"
 ```
 
+# Use from python
+
+```{r}
+path <- system.file("swiplPy.py", package = "swiplr")
+cat("Add this path for python libs: ", path)
+```
+
+```{python}
+sys.path.append("/usr/local/lib/R/site-library/swiplr/")
+import swiplPy
+
+swipl = swiplPy.swiplPy()
+
+swipl.query(code="foo(bar).", query="foo(X)")
+
+del swipl
+```
