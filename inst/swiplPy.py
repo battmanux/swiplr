@@ -82,7 +82,7 @@ class swiplPy:
         data = self.raw_query(code, query)
         out = [parse(l) for l in data if l[0]=="[" ]
          
-        col_names = re.findall("\\b(_|[A-Z][a-zA-Z0-9_]*)\\b",query)
+        col_names = re.findall("\\b(_|[^'][A-Z][a-zA-Z0-9_]*)\\b",query)
         out = [{col_names[i]:cell for i, cell in enumerate(line) if len(col_names[i]) > 0 and  col_names[i][-1] != "_"} for line in out]
         
         return(out)
