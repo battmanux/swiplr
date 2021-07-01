@@ -338,8 +338,12 @@ pl_eval <- function(body, query="true",
 
       l_cmd_ret <- fCleanStdOut(l_cmd_ret)
 
-      l_r <- gregexpr("\\b(_|[A-Z][a-zA-Z0-9_]*)\\b", query)
-      l_variables <- unlist(regmatches(query,  l_r))
+      l_r <- gregexpr("[\\(\\,] *(_|[A-Z][a-zA-Z0-9_]*)\\b", 
+                query, perl = T)[[1]]
+
+      l_variables <- unlist(lapply(seq_along(l_r), function(i) substr(query, attr(l_r, "capture.start")[[i]],
+                                          attr(l_r, "capture.start")[[i]] + attr(l_r, "capture.length")[[i]]-1)))
+      
       l_variables <- unique(l_variables)
 
       if (length(l_variables) == 0 ) {
