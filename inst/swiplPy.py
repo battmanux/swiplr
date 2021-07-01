@@ -4,8 +4,6 @@ import os
 import os.path
 import sys
 import time
-import shutil
-import encodings
 import re
 import tempfile
 
@@ -27,10 +25,10 @@ class swiplPy:
         
       self.projectBasePath = projectBasePath
       
-      self.cnx = NewProlog(self.PROLOG_PATH)
+      self.cnx = self.NewProlog(self.PROLOG_PATH)
 
     def __del__(self):
-      Query(self.cnx, "halt.")
+      self.send("halt.")
 
     def raw_query(self, code="foo(bar).", query="foo(X)", mode = "query", maxnsols=100, timeout=10):
         
@@ -41,7 +39,7 @@ class swiplPy:
         try:
           with open(tmp_fpath, "w") as tempPath:
             tempPath.write(code+"\n\n")
-            tempPath.write(wrapper()+"\n")
+            tempPath.write(self.wrapper()+"\n")
             tempPath.flush()
             tempPath.close()
             
@@ -59,14 +57,14 @@ class swiplPy:
             #proc_stdout = subprocess.getoutput(lCmd)
             
             l_file = tmp_fpath.replace(os.sep, "/")
-            Query(self.cnx, "consult('"+l_file[:-3]+"').")
+            self.send("consult('"+l_file[:-3]+"').")
             
-            l_ret = Query(self.cnx, 
+            l_ret = self.send( 
                           "main_print_tl(("+query+"),"+str(maxnsols)+", "+str(timeout)+").")
   
             l_cmd_ret = l_ret["out"]
             
-            Query(self.cnx, "unload_file('"+l_file[:-3]+"').")
+            self.send("unload_file('"+l_file[:-3]+"').")
            
             l_cmd_ret = l_cmd_ret.split("\n")
             data = [x.strip("\r.") for x in l_cmd_ret if len(x.strip("\r.")) > 0]
@@ -88,8 +86,29 @@ class swiplPy:
         return(out)
 
 
-def wrapper():
-    return("""
+    def send(self, msg, timeout=1) :
+        cnx = self.cnx
+        o = ""
+        last = " "
+        err = ""
+        l_cmd_ret = ""
+        cnx.stdin.write(str.encode(q+"\n"))
+        cnx.stdin.flush()
+        l_end = time.time()+timeout
+        while err == "" and not last.endswith(".") and  time.time() < l_end :
+          o = cnx.stdout.readline()
+          if o.strip() != "":
+            last = o.decode().strip()
+            l_cmd_ret += o.decode()
+        l_ret = {"out":l_cmd_ret, "err":err, "q":q }
+        
+        return(l_ret)
+      
+    def NewProlog(self, l_swipl_bin_path="swipl"):
+        return(subprocess.Popen(l_swipl_bin_path+" -q --nopce", stdin=subprocess.PIPE, stdout=subprocess.PIPE, shell=True))
+
+    def wrapper(self):
+        return("""
 %%%%%%%%%%%%%%%%% This part was added by swiplPy %%%%%%%%%%%%%%%
 
 writeqln(X) :- writeq(X), nl.
@@ -193,32 +212,13 @@ def parse_list(txt):
             
     return(out)
 
-
-def Query(cnx, q, timeout=1) :
-  o = ""
-  last = " "
-  err = ""
-  l_cmd_ret = ""
-  cnx.stdin.write(str.encode(q+"\n"))
-  cnx.stdin.flush()
-  l_end = time.time()+timeout
-  while err == "" and not last.endswith(".") and  time.time() < l_end :
-    o = cnx.stdout.readline()
-    if o.strip() != "":
-      last = o.decode().strip()
-      l_cmd_ret += o.decode()
-  l_ret = {"out":l_cmd_ret, "err":err, "q":q }
   
-  return(l_ret)
-  
-def NewProlog(l_swipl_bin_path="swipl"):
-  return(subprocess.Popen(l_swipl_bin_path+" -q --nopce", stdin=subprocess.PIPE, stdout=subprocess.PIPE, shell=True))
-
-import timeit
-
 if __name__ == "__main__":
     cnx = swiplPy()
     print(cnx.query(code="foo(bar).",query="foo(X)") )
+
+def test():
+    import timeit
     print(timeit.timeit('cnx.query(code="foo(bar).",query="foo(X)") ', globals=locals(), number=100) )
     
    
