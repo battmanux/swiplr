@@ -30,7 +30,7 @@ class swiplPy:
     def __del__(self):
       self.send("halt.")
 
-    def raw_query(self, code="foo(bar).", query="foo(X)", mode = "query", maxnsols=100, timeout=10):
+    def raw_query(self, body="foo(bar).", query="foo(X)", mode = "query", maxnsols=100, timeout=10):
         
         data = None
         fd, tmp_fpath = tempfile.mkstemp(suffix=".pl")
@@ -38,7 +38,7 @@ class swiplPy:
         
         try:
           with open(tmp_fpath, "w") as tempPath:
-            tempPath.write(code+"\n\n")
+            tempPath.write(body+"\n\n")
             tempPath.write(self.wrapper()+"\n")
             tempPath.flush()
             tempPath.close()
@@ -76,8 +76,8 @@ class swiplPy:
           
         return(data)        
 
-    def query(self,code="foo(bar).", query="foo(X)"):
-        data = self.raw_query(code, query)
+    def query(self,body="foo(bar).", query="foo(X)"):
+        data = self.raw_query(body, query)
         out = [parse(l) for l in data if l[0]=="[" ]
          
         col_names = re.findall("[\\(\\,]\ *(_|[A-Z][a-zA-Z0-9_]*)\\b",query)
@@ -92,12 +92,15 @@ class swiplPy:
         last = " "
         err = ""
         l_cmd_ret = ""
+        timeout = 1
+        
         cnx.stdin.write(str.encode(q+"\n"))
         cnx.stdin.flush()
         l_end = time.time()+timeout
         while err == "" and not last.endswith(".") and  time.time() < l_end :
           o = cnx.stdout.readline()
           if o.strip() != "":
+            l_end = time.time()+timeout
             last = o.decode().strip()
             l_cmd_ret += o.decode()
         l_ret = {"out":l_cmd_ret, "err":err, "q":q }
@@ -110,6 +113,7 @@ class swiplPy:
     def wrapper(self):
         return("""
 %%%%%%%%%%%%%%%%% This part was added by swiplPy %%%%%%%%%%%%%%%
+:- set_prolog_flag(debug_on_error, false).
 
 writeqln(X) :- writeq(X), nl.
 
@@ -118,10 +122,8 @@ main_query(Query, ListRes, LIMIT) :-
            findnsols(LIMIT,ListVars , (Query), ListRes).
 
 main_print(Query, LIMIT) :-
-           write('=START=\\n'),
            main_query(Query, ListRes, LIMIT),
-           maplist(writeqln, ListRes),
-           write('=STOP==\\n').
+           maplist(writeqln, ListRes).
 
 main_with_duration(Query, LIMIT)    :-
            statistics(walltime, []),
@@ -215,10 +217,10 @@ def parse_list(txt):
   
 if __name__ == "__main__":
     cnx = swiplPy()
-    print(cnx.query(code="foo(bar).",query="foo(X)") )
+    print(cnx.query(body="foo(bar).",query="foo(X)") )
 
 def test():
     import timeit
-    print(timeit.timeit('cnx.query(code="foo(bar).",query="foo(X)") ', globals=locals(), number=100) )
+    print(timeit.timeit('cnx.query(body="foo(bar).",query="foo(X)") ', globals=locals(), number=100) )
     
    
