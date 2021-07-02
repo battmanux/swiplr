@@ -90,7 +90,7 @@ class swiplPy:
         cnx.stdin.flush()
         l_end = time.time()+timeout
         while not last.endswith(".") and  time.time() < l_end :
-          time.sleep(0.001)
+          #time.sleep(0.001)
           o = cnx.stdout.readline()
           if o.strip() != b"":
             l_end = time.time()+timeout

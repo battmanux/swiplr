@@ -42,7 +42,7 @@ swiplR <- function(l_swipl_bin_path="swipl", l_args = c("-q","--nopce")) {
         l_end <- proc.time()[["elapsed"]]+timeout
         out <- paste0(out, o)
       } else {
-        Sys.sleep(0.001)
+        #Sys.sleep(0.001)
       }
 
       err <- self$cnx$read_error()
