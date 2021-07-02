@@ -24,11 +24,18 @@ class swiplPy:
       self.PROLOG_PATH = self.PROLOG_PATH.replace(os.sep, '/')
       
       self.cnx = self.NewProlog(self.PROLOG_PATH)
+      self.lastError = ""
 
     def __del__(self):
       self.cnx.stdin.write(str.encode("halt.\n"))
       self.cnx.stdin.flush()
-      self.cnx
+      self.cnx.kill()
+      
+    def restart(self):
+      self.cnx.stdin.write(str.encode("halt.\n"))
+      self.cnx.stdin.flush()
+      self.cnx.kill()
+      self.cnx = self.NewProlog(self.PROLOG_PATH)
 
     def raw_query(self, body="foo(bar).", query="foo(X)", mode = "query", maxnsols=100, timeout=10):
         
@@ -50,6 +57,7 @@ class swiplPy:
                           "main_print_tl(("+query+"),"+str(maxnsols)+", "+str(timeout)+").")
   
             l_cmd_ret = l_ret["out"]
+            self.lastError = l_ret["err"]
             
             self.send("unload_file('"+l_file[:-3]+"').")
            
@@ -83,6 +91,7 @@ class swiplPy:
         cnx.stdin.flush()
         l_end = time.time()+timeout
         while err == "" and not last.endswith(".") and  time.time() < l_end :
+          err = cnx.stderr.readlines()
           o = cnx.stdout.readline()
           if o.strip() != "":
             l_end = time.time()+timeout
@@ -93,7 +102,10 @@ class swiplPy:
         return(l_ret)
       
     def NewProlog(self, l_swipl_bin_path="swipl"):
-        return(subprocess.Popen(l_swipl_bin_path+" -q --nopce", stdin=subprocess.PIPE, stdout=subprocess.PIPE, shell=True))
+      p = subprocess.Popen(l_swipl_bin_path+" -q --nopce", stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+      os.set_blocking(p.stderr.fileno(), False)
+      os.set_blocking(p.stdout.fileno(), False)
+      return(p)
 
     def wrapper(self):
         return("""

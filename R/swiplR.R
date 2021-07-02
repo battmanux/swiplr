@@ -23,6 +23,7 @@ swiplR <- function(l_swipl_bin_path="swipl", l_args = c("-q","--nopce")) {
     o<- ""
     out<-""
     last <- ""
+    err_full <- ""
     err <- ""
 
     if ( ! endsWith(x = msg, ".") )
@@ -34,14 +35,22 @@ swiplR <- function(l_swipl_bin_path="swipl", l_args = c("-q","--nopce")) {
     l_end <- proc.time()[["elapsed"]]+timeout
 
     while ( err == "" &&  ! endsWith(last, ".") && proc.time()[["elapsed"]] < l_end ) {
-      err <- paste0(err, self$cnx$read_error())
+
       o<-self$cnx$read_output()
       last <- trimws(o)
       if (last != "") {
         l_end <- proc.time()[["elapsed"]]+timeout
         out <- paste0(out, o)
+      } else {
+        Sys.sleep(0.001)
       }
+
+      err <- self$cnx$read_error()
+      if (nchar(err) > 0 )
+        err_full <- paste0(err_full, err)
+
     }
+
 
     l_ret <- list(out=out, err=err, q=msg )
 
@@ -52,7 +61,7 @@ swiplR <- function(l_swipl_bin_path="swipl", l_args = c("-q","--nopce")) {
                          nsol=10 , verbose=F,
                          timeout=10, mode = "query",
                          more_options = "",
-                         data, cnx, ...) {
+                         data, ...) {
 
 
     opt <- options("swipl_binary")
@@ -80,10 +89,11 @@ swiplR <- function(l_swipl_bin_path="swipl", l_args = c("-q","--nopce")) {
     l_file <- tempfile("filepl", ".", ".pl" )
     on.exit(unlink(l_file), add = T)
 
-
-    l_src <- whisker::whisker.render(body, data = data, strict = FALSE)
     cat(self$wrapper(), file = l_file)
-    cat(l_src, file = l_file, append = T)
+    if ( !missing(body) ) {
+      l_src <- whisker::whisker.render(body, data = data, strict = FALSE)
+      cat(l_src, file = l_file, append = T)
+    }
 
     if ( verbose == TRUE )
       cat(sep = "",
