@@ -24,7 +24,7 @@ class swiplPy:
       self.PROLOG_PATH = self.PROLOG_PATH.replace(os.sep, '/')
       
       self.cnx = self.NewProlog(self.PROLOG_PATH)
-      self.lastError = ""
+      self.lastError = []
 
     def __del__(self):
       self.cnx.stdin.write(str.encode("halt.\n"))
@@ -43,28 +43,26 @@ class swiplPy:
         fd, tmp_fpath = tempfile.mkstemp(suffix=".pl")
         os.close(fd) # Needed on Windows if you want to access the file in another process
         
-        try:
-          with open(tmp_fpath, "w") as tempPath:
-            tempPath.write(body+"\n\n")
-            tempPath.write(self.wrapper()+"\n")
-            tempPath.flush()
-            tempPath.close()
-            
-            l_file = tmp_fpath.replace(os.sep, "/")
-            self.send("consult('"+l_file[:-3]+"').")
-            
-            l_ret = self.send( 
-                          "main_print_tl(("+query+"),"+str(maxnsols)+", "+str(timeout)+").")
-  
-            l_cmd_ret = l_ret["out"]
-            self.lastError = l_ret["err"]
-            
-            self.send("unload_file('"+l_file[:-3]+"').")
-           
-            l_cmd_ret = l_cmd_ret.split("\n")
-            data = [x.strip("\r.") for x in l_cmd_ret if len(x.strip("\r.")) > 0]
-  
-        finally:
+        with open(tmp_fpath, "w") as tempPath:
+          tempPath.write(self.wrapper()+"\n")
+          tempPath.write(body+"\n\n")
+          tempPath.flush()
+          tempPath.close()
+          
+          l_file = tmp_fpath.replace(os.sep, "/")
+          self.send("consult('"+l_file[:-3]+"').")
+          
+          l_ret = self.send( 
+                        "main_print_tl(("+query+"),"+str(maxnsols)+", "+str(timeout)+").")
+          
+          l_cmd_ret = l_ret["out"]
+          self.lastError = l_ret["err"]
+          
+          self.send("unload_file('"+l_file[:-3]+"').")
+         
+          l_cmd_ret = l_cmd_ret.split("\n")
+          data = [x.strip("\r.") for x in l_cmd_ret if len(x.strip("\r.")) > 0]
+
           os.remove(tmp_fpath)    
           
         return(data)        
@@ -74,6 +72,7 @@ class swiplPy:
         out = [parse(l) for l in data if l[0]=="[" ]
          
         col_names = re.findall("[\\(\\,]\ *(_|[A-Z][a-zA-Z0-9_]*)\\b",query)
+        
         out = [{col_names[i]:cell for i, cell in enumerate(line) if len(col_names[i]) > 0 and  col_names[i][-1] != "_"} for line in out]
         
         return(out)
@@ -83,22 +82,24 @@ class swiplPy:
         cnx = self.cnx
         o = ""
         last = " "
-        err = ""
+        err = []
         l_cmd_ret = ""
         timeout = 1
         
         cnx.stdin.write(str.encode(msg+"\n"))
         cnx.stdin.flush()
         l_end = time.time()+timeout
-        while err == "" and not last.endswith(".") and  time.time() < l_end :
-          err = cnx.stderr.readlines()
+        while not last.endswith(".") and  time.time() < l_end :
+          time.sleep(0.001)
           o = cnx.stdout.readline()
-          if o.strip() != "":
+          if o.strip() != b"":
             l_end = time.time()+timeout
             last = o.decode().strip()
             l_cmd_ret += o.decode()
-        l_ret = {"out":l_cmd_ret, "err":err, "q":msg }
         
+        err = cnx.stderr.readlines()
+        l_ret = {"out":l_cmd_ret, "err":err, "q":msg }
+          
         return(l_ret)
       
     def NewProlog(self, l_swipl_bin_path="swipl"):
@@ -142,6 +143,7 @@ main_with_profile_tl(Query, LIMIT, TIMEOUT) :-
            call_with_time_limit(TIMEOUT, main_with_profile(Query, LIMIT)).
 
 main(Query) :- main_print_tl(Query, 10, 10).
+%%%%%%%%%%%%%%%%% This part was added by swiplPy %%%%%%%%%%%%%%%
 
 """)
 
