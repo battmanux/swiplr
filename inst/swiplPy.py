@@ -9,12 +9,12 @@ import tempfile
 
 class swiplPy:
   
-    if sys.platform == "linux":
+    if sys.platform == "linux" or sys.platform.startswith('linux'):
       PROLOG_PATH = "/usr/bin/swipl"
     else:
       PROLOG_PATH = r'C:\Program Files\swipl\bin\swipl.exe'
 
-    def __init__(self, prolog_path=None, projectBasePath="."):
+    def __init__(self, prolog_path=None):
 
       if prolog_path != None:
         self.PROLOG_PATH = prolog_path
@@ -22,13 +22,13 @@ class swiplPy:
         self.PROLOG_PATH = swiplPy.PROLOG_PATH
         
       self.PROLOG_PATH = self.PROLOG_PATH.replace(os.sep, '/')
-        
-      self.projectBasePath = projectBasePath
       
       self.cnx = self.NewProlog(self.PROLOG_PATH)
 
     def __del__(self):
-      self.send("halt.")
+      self.cnx.stdin.write(str.encode("halt.\n"))
+      self.cnx.stdin.flush()
+      self.cnx
 
     def raw_query(self, body="foo(bar).", query="foo(X)", mode = "query", maxnsols=100, timeout=10):
         
@@ -43,19 +43,6 @@ class swiplPy:
             tempPath.flush()
             tempPath.close()
             
-            old = os.getcwd()
-            os.chdir(self.projectBasePath)
-            
-            #if sys.platform != 'linux' :
-            #  lCmd = r' "'+self.PROLOG_PATH+r'''" --nopce -q -f "'''+ \
-            #         tempPath.name+r'''" -g "main_print_tl('''+query+r''')" -t halt'''
-            #  
-            #else:
-            #  lCmd = r''+self.PROLOG_PATH+r''' --nopce -q -f "'''+ \
-            #       tempPath.name+r'''" -g "main_print_tl('''+query+r''')" -t halt'''
-            #
-            #proc_stdout = subprocess.getoutput(lCmd)
-            
             l_file = tmp_fpath.replace(os.sep, "/")
             self.send("consult('"+l_file[:-3]+"').")
             
@@ -68,8 +55,6 @@ class swiplPy:
            
             l_cmd_ret = l_cmd_ret.split("\n")
             data = [x.strip("\r.") for x in l_cmd_ret if len(x.strip("\r.")) > 0]
-            
-            os.chdir(old)
   
         finally:
           os.remove(tmp_fpath)    
@@ -94,7 +79,7 @@ class swiplPy:
         l_cmd_ret = ""
         timeout = 1
         
-        cnx.stdin.write(str.encode(q+"\n"))
+        cnx.stdin.write(str.encode(msg+"\n"))
         cnx.stdin.flush()
         l_end = time.time()+timeout
         while err == "" and not last.endswith(".") and  time.time() < l_end :
@@ -103,7 +88,7 @@ class swiplPy:
             l_end = time.time()+timeout
             last = o.decode().strip()
             l_cmd_ret += o.decode()
-        l_ret = {"out":l_cmd_ret, "err":err, "q":q }
+        l_ret = {"out":l_cmd_ret, "err":err, "q":msg }
         
         return(l_ret)
       

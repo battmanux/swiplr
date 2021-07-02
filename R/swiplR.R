@@ -208,8 +208,18 @@ swiplR <- function(l_swipl_bin_path="swipl", l_args = c("-q","--nopce")) {
 
       }
     }
-    #toc()
-    #toc()
+
+    if (inherits(l_r_data, "data.frame")) {
+      for ( c in names(l_r_data)) {
+
+        if ( all( unlist(lapply(l_r_data[[c]], is.list)) == FALSE) ) {
+          l_r_data[[c]] <- unlist(l_r_data[[c]])
+        } else {
+          class(l_r_data[[c]]) <- "list"
+        }
+      }
+    }
+
     return(l_r_data)
   }
 
