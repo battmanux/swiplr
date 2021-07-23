@@ -68,10 +68,12 @@ class swiplPy:
         return(data)        
 
     def query(self,body="foo(bar).", query="foo(X)", mode = "query", maxnsols=100, timeout=10):
-        data = self.raw_query(body, query, , mode, maxnsols, timeout)
+
+        data = self.raw_query(body, query, mode, maxnsols, timeout)
         out = [parse(l) for l in data if l[0]=="[" ]
          
-        col_names = re.findall("[\\(\\,]\ *(_|[A-Z][a-zA-Z0-9_]*)\\b",query)
+        l_var_txt = re.sub("'[^']*'","",query)
+        col_names = re.findall("[\\(\\,]\ *(_|[A-Z][a-zA-Z0-9_]*)\\b",l_var_txt)
         
         out = [{col_names[i]:cell for i, cell in enumerate(line) if len(col_names[i]) > 0 and  col_names[i][-1] != "_"} for line in out]
         

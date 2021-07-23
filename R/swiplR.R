@@ -132,10 +132,6 @@ swiplR <- function(l_swipl_bin_path="swipl", l_args = c("-q","--nopce")) {
     self$send(paste0("consult('",substr(l_file, 0,nchar(l_file)-3 ) ,"')."))
 
     l_ret <- self$send(paste0(l_mode_map[[mode]], "((",query,"), ",nsol,", ",timeout,")."))
-    if (! endsWith(l_ret$out, "true.\n\n")) {
-      warning("there is a warning with some error, try to answer no.")
-      self$send("n.")
-    }
 
     if (nchar(l_ret$err) > 0)
       warning(l_ret$err)
@@ -187,8 +183,9 @@ swiplR <- function(l_swipl_bin_path="swipl", l_args = c("-q","--nopce")) {
 
         l_cmd_ret <- fCleanStdOut(l_cmd_ret)
 
-        l_r <- gregexpr("\\b(_|[A-Z][a-zA-Z0-9_]*)\\b", query)
-        l_variables <- unlist(regmatches(query,  l_r))
+        l_var_txt <- gsub(pattern = "'[^']*'", replacement = "", query)
+        l_r <- gregexpr("\\b(_|[A-Z][a-zA-Z0-9_]*)\\b", l_var_txt)
+        l_variables <- unlist(regmatches(l_var_txt,  l_r))
         l_variables <- unique(l_variables)
 
         if (length(l_variables) == 0 ) {
