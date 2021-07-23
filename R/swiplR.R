@@ -115,7 +115,7 @@ swiplR <- function(l_swipl_bin_path="swipl", l_args = c("-q","--nopce")) {
     l_file <- basename(l_file)
     self$send(paste0("consult('",substr(l_file, 0,nchar(l_file)-3 ) ,"')."))
 
-    l_ret <- self$send(paste0("main_print_tl((",query,"), ",nsol,", ",timeout,")."))
+    l_ret <- self$send(paste0(l_mode_map[[mode]], "((",query,"), ",nsol,", ",timeout,")."))
     if (! endsWith(l_ret$out, "true.")) {
       # there is a warning with some error, try to answer no.
       self$send("n.")

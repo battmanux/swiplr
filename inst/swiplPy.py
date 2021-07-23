@@ -58,7 +58,7 @@ class swiplPy:
           l_cmd_ret = l_ret["out"]
           self.lastError = l_ret["err"]
           
-          self.send("unload_file('"+l_file[:-3]+"').")
+          self.send("unload_file('"+l_file[:-3]+"').", timeout=timeout)
          
           l_cmd_ret = l_cmd_ret.split("\n")
           data = [x.strip("\r.") for x in l_cmd_ret if len(x.strip("\r.")) > 0]
@@ -67,8 +67,8 @@ class swiplPy:
           
         return(data)        
 
-    def query(self,body="foo(bar).", query="foo(X)"):
-        data = self.raw_query(body, query)
+    def query(self,body="foo(bar).", query="foo(X)", mode = "query", maxnsols=100, timeout=10):
+        data = self.raw_query(body, query, , mode, maxnsols, timeout)
         out = [parse(l) for l in data if l[0]=="[" ]
          
         col_names = re.findall("[\\(\\,]\ *(_|[A-Z][a-zA-Z0-9_]*)\\b",query)
@@ -78,7 +78,7 @@ class swiplPy:
         return(out)
 
 
-    def send(self, msg, timeout=1) :
+    def send(self, msg, timeout=10) :
         cnx = self.cnx
         o = ""
         last = " "
