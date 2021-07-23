@@ -34,25 +34,41 @@ swiplR <- function(l_swipl_bin_path="swipl", l_args = c("-q","--nopce")) {
     self$cnx$write_input(paste0(msg,l_nl) )
     l_end <- proc.time()[["elapsed"]]+timeout
 
-    while ( err == "" &&  ! endsWith(last, ".") && proc.time()[["elapsed"]] < l_end ) {
-
+    while ( err == "" &&  o == "" && proc.time()[["elapsed"]] < l_end ) {
       o<-self$cnx$read_output()
-      last <- trimws(o)
-      if (last != "") {
-        l_end <- proc.time()[["elapsed"]]+timeout
-        out <- paste0(out, o)
-      } else {
-        #Sys.sleep(0.001)
-      }
-
-      err <- self$cnx$read_error()
-      if (nchar(err) > 0 )
-        err_full <- paste0(err_full, err)
-
     }
 
+    if (proc.time()[["elapsed"]] >= l_end) {
 
-    l_ret <- list(out=out, err=err, q=msg )
+      err <- self$cnx$read_error()
+      l_ret <- list(out=c(o,self$cnx$read_output()), err=err, q=msg )
+
+    } else {
+
+      last <- trimws(o)
+      out <- paste0(out, o)
+      while ( err == "" &&  ! endsWith(last, ".") && proc.time()[["elapsed"]] < l_end ) {
+
+        o<-self$cnx$read_output()
+        last <- trimws(o)
+        if (last != "") {
+          l_end <- proc.time()[["elapsed"]]+timeout
+          out <- paste0(out, o)
+        } else {
+          # We've got empty line inside results, wait in background
+          Sys.sleep(0.001)
+        }
+
+        err <- self$cnx$read_error()
+        if (nchar(err) > 0 )
+          err_full <- paste0(err_full, err)
+
+      }
+
+
+      l_ret <- list(out=out, err=err, q=msg )
+
+    }
 
     return(l_ret)
   }
@@ -116,10 +132,13 @@ swiplR <- function(l_swipl_bin_path="swipl", l_args = c("-q","--nopce")) {
     self$send(paste0("consult('",substr(l_file, 0,nchar(l_file)-3 ) ,"')."))
 
     l_ret <- self$send(paste0(l_mode_map[[mode]], "((",query,"), ",nsol,", ",timeout,")."))
-    if (! endsWith(l_ret$out, "true.")) {
-      # there is a warning with some error, try to answer no.
+    if (! endsWith(l_ret$out, "true.\n\n")) {
+      warning("there is a warning with some error, try to answer no.")
       self$send("n.")
     }
+
+    if (nchar(l_ret$err) > 0)
+      warning(l_ret$err)
 
     self$send(paste0("unload_file('",substr(l_file, 0,nchar(l_file)-3 ) ,"')."))
 
