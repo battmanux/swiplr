@@ -184,8 +184,10 @@ swiplR <- function(l_swipl_bin_path="swipl", l_args = c("-q","--nopce")) {
         l_cmd_ret <- fCleanStdOut(l_cmd_ret)
 
         l_var_txt <- gsub(pattern = "'[^']*'", replacement = "", query)
-        l_r <- gregexpr("\\b(_|[A-Z][a-zA-Z0-9_]*)\\b", l_var_txt)
+        l_r <- gregexpr("\\b(_|[A-Z][a-zA-Z0-9À-ÿ_]*)\\b", l_var_txt)
         l_variables <- unlist(regmatches(l_var_txt,  l_r))
+        l_unnamed_pos <- which(l_variables == "_")
+        l_variables[l_unnamed_pos] <- paste("_", l_unnamed_pos, "_", sep = "")
         l_variables <- unique(l_variables)
 
         if (length(l_variables) == 0 ) {
