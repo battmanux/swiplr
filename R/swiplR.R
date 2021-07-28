@@ -26,6 +26,10 @@ swiplR <- function(l_swipl_bin_path="swipl", l_args = c("-q","--nopce")) {
     err_full <- ""
     err <- ""
 
+    # make sure buffer is empty
+    self$cnx$read_output()
+    self$cnx$read_error()
+
     if ( ! endsWith(x = msg, ".") )
       l_nl <- ".\n"
     else
@@ -34,14 +38,18 @@ swiplR <- function(l_swipl_bin_path="swipl", l_args = c("-q","--nopce")) {
     self$cnx$write_input(paste0(msg,l_nl) )
     l_end <- proc.time()[["elapsed"]]+timeout
 
+    # This is just to handle very fast errors
     while ( err == "" &&  o == "" && proc.time()[["elapsed"]] < l_end ) {
       o<-self$cnx$read_output()
+      err <- self$cnx$read_error()
+      if (nchar(err) > 0 ) {
+        err_full <- paste0(err_full, err)
+      }
     }
 
-    if (proc.time()[["elapsed"]] >= l_end) {
+    if (nchar(err_full) > 0 || proc.time()[["elapsed"]] >= l_end) {
 
-      err <- self$cnx$read_error()
-      l_ret <- list(out=c(o,self$cnx$read_output()), err=err, q=msg )
+      l_ret <- list(out=o, err=err_full, q=msg )
 
     } else {
 
@@ -55,15 +63,22 @@ swiplR <- function(l_swipl_bin_path="swipl", l_args = c("-q","--nopce")) {
           l_end <- proc.time()[["elapsed"]]+timeout
           out <- paste0(out, o)
         } else {
-          # We've got empty line inside results, wait in background
-          Sys.sleep(0.001)
+          # We've got empty line inside results, check for errors and wait in background
+
+          err <- self$cnx$read_error()
+          if (nchar(err) > 0 ) {
+            err_full <- paste0(err_full, err)
+          } else {
+            Sys.sleep(0.001)
+          }
         }
 
-        err <- self$cnx$read_error()
-        if (nchar(err) > 0 )
+        while ( nchar(err) > 0 ) {
+          err <- self$cnx$read_error()
           err_full <- paste0(err_full, err)
+        }
 
-      }
+        }
 
 
       l_ret <- list(out=out, err=err, q=msg )
@@ -79,6 +94,8 @@ swiplR <- function(l_swipl_bin_path="swipl", l_args = c("-q","--nopce")) {
                          more_options = "",
                          data, ...) {
 
+    # Make sure there is no '.' at the end of query
+    query <- gsub(pattern = "\\.[\\t ]*$", "", query)
 
     opt <- options("swipl_binary")
 
@@ -129,12 +146,16 @@ swiplR <- function(l_swipl_bin_path="swipl", l_args = c("-q","--nopce")) {
       self$restart()
 
     l_file <- basename(l_file)
-    self$send(paste0("consult('",substr(l_file, 0,nchar(l_file)-3 ) ,"')."))
+    l_load_ret <- self$send(paste0("consult('",substr(l_file, 0,nchar(l_file)-3 ) ,"')."))
+    if ( nchar(l_load_ret$err) > 0 ) {
+
+      fDecodeStdErr(l_load_ret$err, l_file)
+      self$send(paste0("unload_file('",substr(l_file, 0,nchar(l_file)-3 ) ,"')."))
+
+      return(NULL)
+    }
 
     l_ret <- self$send(paste0(l_mode_map[[mode]], "((",query,"), ",nsol,", ",timeout,")."))
-
-    if (nchar(l_ret$err) > 0)
-      warning(l_ret$err)
 
     self$send(paste0("unload_file('",substr(l_file, 0,nchar(l_file)-3 ) ,"')."))
 
@@ -448,14 +469,16 @@ fParseList <- function(txt) {
 }
 
 fDecodeStdErr <- function(txtList, l_file) {
+  txtList <- gsub("\n\t", "\t", txtList)
+  txtList <- strsplit(txtList, split = "\n")[[1]]
   l_content <- readLines(l_file, warn = F)
 
   suppressWarnings(
-    l_line        <- min(as.numeric(gsub(".*.pl:(\\d+):.*$", '\\1', txtList[[1]])),  length(l_content) - 7)
+    l_line        <- min(as.numeric(gsub(".*.pl:(\\d+):.*$", '\\1', txtList[[1]])),  length(l_content))
   )
   if ( ! is.na(l_line) ) {
-    l_line_top    <- max(l_line - 2, 1)
-    l_line_bottom <- min(l_line + 2, length(l_content) - 6 )
+    l_line_top    <- l_line
+    l_line_bottom <- max(l_line + 2, length(l_content) )
 
     l_col     <- gsub(".*.pl:\\d+:(\\d*).*$", '\\1', txtList[[1]])
     l_warning <- gsub(".*.pl:\\d+:\\d*(.*)$", '\\1', txtList[[1]])
@@ -491,3 +514,9 @@ fCleanStdOut <- function(txtList) {
   txtList[grepl(pattern = "^\\[", txtList)]
 }
 
+as.pl_data.data.frame <- function(l_data) {
+  l_out <- list()
+  l_name <- tolower(gsub("^(\\w+).*$", "\\1", deparse(substitute(l_data))))
+  l_out[[l_name]] <- unname(apply(l_data, 1, as.list))
+  return(l_out)
+}

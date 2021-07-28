@@ -104,7 +104,7 @@ l_out <- swipl$query(.swiplr_chunks$test2_data,
 str(l_out$List)
 ```
 
-### Test3 : Inject data in body
+### Test 3 : Inject data in body
 
 ```{r}
 body <- "
@@ -156,4 +156,70 @@ swipl$query(body,
   data = list(row=unname(apply(CO2[1:5,], 1, as.list) ) )
   )
 
+```
+
+## Broken files and error handling
+
+### Test 4: bad syntax in file
+
+
+```{r}
+swipl$restart()
+
+swipl$query("missing_point(at,end,of,line)", "X=1")
+swipl$query("missing_operator ponctuation.", "X=1")
+swipl$query(":- my_undefined_procedure.", "X=1")
+
+swipl$query("foo(bar).", "foo(X)")
+
+```
+
+### Test 5: bad syntax in query
+
+
+```{r}
+swipl$restart()
+
+swipl$query("foo(bar).", "foo(X ")
+swipl$query("foo(bar).", "foo2(x) ")
+
+```
+
+
+## Performances
+
+### full call duration
+
+```{r}
+# usually  less than 100ms
+system.time({out <- swiplr::swiplR()$query("foo(bar).", "foo(X).")})
+out
+
+pl <- swiplr::swiplR()
+# usually  less than 10 ms
+system.time({out <- pl$query("foo(bar).", "foo(X).")})
+out
+
+
+```
+
+
+```{r}
+data <- as.pl_data.data.frame(CO2)
+pl <- swiplr::swiplR()
+# usually  less than 80 ms
+system.time({out <- pl$query(
+  "\n{{{#co2}}}co2('{{{Plant}}}','{{{Type}}}','{{{Treatment}}}','{{{conc}}}',{{{uptake}}}).\n{{{/co2}}}",
+  "co2(Plant, Type, Treatment, Conc, Uptake).", 
+  data = data, nsol = 1000)})
+
+out
+
+data <- as.pl_data.data.frame(EuStockMarkets)
+# usually 1500 ms
+system.time({out <- pl$query(
+  "\n{{{#eustockmarkets}}}eustockmarkets('{{{DAX}}}','{{{SMI}}}','{{{CAC}}}','{{{FTSE}}}').\n{{{/eustockmarkets}}}",
+  "eustockmarkets(DAX, SMI, CAC, FTSE).", 
+  data = data, nsol = 2000)})
+out
 ```
