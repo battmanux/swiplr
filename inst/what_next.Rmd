@@ -1,0 +1,43 @@
+---
+title: "Siplr_Usages"
+author: "Emmanuel BATT"
+date: "26/07/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(swiplr)
+```
+
+
+## Some ideas for good usage
+
+```{prolog database}
+
+label(_, header(1), "fr-FR", "Colonne une").
+label(_, row(1),    "fr-FR", "Ligne une").
+label(_, root,      "fr-FR", "Document principale").
+
+tr(Code, Fr) :- (label(_, Code, "fr-FR", Fr) -> label(_, Code, "fr-FR", Fr) ; Code = Fr ) .
+
+cell_fr(Quoi, Entete, Ligne, Valeur) :- 
+  cell(What_, Header_, Row_, Value_), 
+  tr(What_, Quoi), tr(Header_, Entete), tr(Row_, Ligne), tr(Value_, Valeur) .
+
+cell(root, header(1), row(1), 44).
+cell(root, header(12), row(25), 55).
+cell(root, header(10), row(1), 44).
+cell(root, header(10), row(25), 55).
+cell(root, header(4), row(1), 44).
+cell(root, header(10), row(5), 55).
+
+?- cell(What, Header, Row, Value)
+?- cell_fr(What, Header, Row, Value)
+?- cell(What_, Header_, Row_, Value_), tr(What_, Quoi), tr(Header_, Entete), tr(Row_, Ligne), tr(Value_, Valeur) 
+```
+```{r}
+swiplr::table_query(.swiplr_chunks$database, 
+                    query = "cell_fr(root, COLUMN_HEADER, ENTITY, CELL)")
+```
+
+

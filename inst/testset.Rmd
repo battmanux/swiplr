@@ -1,0 +1,159 @@
+---
+title: "Siplr_Usages"
+author: "Emmanuel BATT"
+date: "26/07/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(swiplr)
+swipl <- swiplr::swiplR()
+
+```
+
+
+## Tests databases
+
+### Test 1 for upper case and spécial caracters in atoms
+
+```{prolog test1_data}
+
+test1(foo, bar).
+test1(foo, 'Bar').
+test1(foo, 'Bar of joe.').
+test1('_foo_', 'Bar of Joé.').
+test1(fée, 'Bar of Joé.').
+
+test1(with, more, columns, in, order, 'to hide', some, of, them).
+test1(with, less, columns, in, order, 'to show', many, of, them).
+
+```
+
+
+### Test 2 complex data in results
+
+```{prolog test2_data}
+
+test2(some(foo_bar),other(with,things)).
+test2(some(of(lists,number)),[1,2,3]).
+test2(some(of(lists,things)),[some(thing),2,foo(bar)]).
+
+```
+
+
+## Query test databases
+
+### Test 1 for special characters
+
+```{r}
+swipl$query(.swiplr_chunks$test1_data, 
+                    query = "test1(Foo, Bar)")
+```
+
+Warning: #€$ and () are not allowed in Variable names
+
+```{r}
+swipl$query(.swiplr_chunks$test1_data, 
+                    query = "test1(FoéWithÀccent, Bar_With_Ümlletter)")
+```
+
+```{r}
+swipl$query(.swiplr_chunks$test1_data, 
+                    query = "test1(FoéWithÀccent, Bar_With_Ümlletter)")
+```
+
+Hiding columns after query 
+
+```{r}
+swipl$query(.swiplr_chunks$test1_data, 
+                    query = "test1(Visible, Hidden_)")
+```
+
+```{r}
+swipl$query(.swiplr_chunks$test1_data, 
+                    query = "test1(Hidden_, Visible, A, B, C, D, E, F, G)")
+
+swipl$query(.swiplr_chunks$test1_data, 
+                    query = "test1(Hidden_, Visible, A_, B_, C_, D, E_, F_, G_)")
+
+swipl$query(.swiplr_chunks$test1_data, 
+                    query = "test1(Hidden_, Visible, _, _, _, D_, _, _, _)")
+
+```
+
+
+### Test 2 : Multi level query
+
+Automatic type unlist for columns
+
+```{r}
+swipl$query(.swiplr_chunks$test2_data, 
+                    query = "test2(What, Content)")
+
+
+swipl$query(.swiplr_chunks$test2_data, 
+                    query = "test2(some(foo_bar), Content)")
+
+```
+
+```{r}
+
+l_out <- swipl$query(.swiplr_chunks$test2_data, 
+                    query = "test2(some(of(lists, What)), List)")
+
+str(l_out$List)
+```
+
+### Test3 : Inject data in body
+
+```{r}
+body <- "
+test3(some({{{key}}}_always_visible),other({{{value}}})).
+
+{{{#visible}}}
+test3(some({{{key}}}_may_hide),other({{{value}}})).
+{{{/visible}}}
+"
+
+
+swipl$query(body, query = "test3(Show, Other)",
+  data = list(key="foo1", value="bar1é", visible=T))
+
+swipl$query(body, query = "test3(Hide, Other)",
+  data = list(key="foo2", value="bar2é", visible=F))
+
+```
+
+
+```{r}
+body <- "
+{{{#row}}}
+test3(some({{{key}}}),other({{{value}}})).
+{{{/row}}}
+"
+  
+swipl$query(body,
+  query =   "test3(Key, Value)",
+  data = list(row=list(
+              list(key="foo1", value="bar1"),
+              list(key="foo2", value="bar2")
+              ) )
+  )
+
+```
+
+This is how to convert a data.frame into a prolog predicate.
+
+```{r}
+body <- "
+{{{#row}}}
+co2('{{{Plant}}}', '{{{Type}}}', {{{conc}}}, {{{uptake}}}).
+{{{/row}}}
+"
+data("CO2")
+swipl$query(body,
+  query =   "co2(Plant, Type, Conc, Uptake)",
+  data = list(row=unname(apply(CO2[1:5,], 1, as.list) ) )
+  )
+
+```
